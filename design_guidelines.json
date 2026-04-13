@@ -1,0 +1,113 @@
+{
+  "theme": "Light",
+  "archetype": "1: Organic & Earthy",
+  "emotional_tone": "Excitement, wanderlust, trust, frictionless collaboration, premium travel-tech.",
+  "colors": {
+    "background": "#F7F6F2",
+    "surface": "#FFFFFF",
+    "primary": "#2C4234",
+    "primary_hover": "#1F3025",
+    "accent": "#D96A53",
+    "accent_hover": "#C25944",
+    "text_main": "#1C1E1D",
+    "text_muted": "#5C605E",
+    "border": "#E5E4DE"
+  },
+  "typography": {
+    "heading_font": "Outfit",
+    "body_font": "DM Sans",
+    "scale": {
+      "h1": "text-5xl lg:text-6xl tracking-tight leading-none font-medium",
+      "h2": "text-3xl lg:text-4xl tracking-tight leading-tight font-medium",
+      "h3": "text-xl lg:text-2xl tracking-normal leading-snug font-medium",
+      "body": "text-base leading-relaxed",
+      "small": "text-sm uppercase tracking-[0.2em]"
+    }
+  },
+  "layout_and_spacing": {
+    "spacing_scale": "p-4, p-8, p-12, p-16, p-24, p-32",
+    "marketing_grid": "Bento Grid (Tetris Mode): grid-cols-1 md:grid-cols-8 lg:grid-cols-12 with gap-8 to gap-12. Asymmetrical balance.",
+    "app_grid": "Control Room Grid: grid-cols-1 md:grid-cols-3 lg:grid-cols-4 with gap-6. Strict hierarchy.",
+    "corners": "rounded-2xl for large cards, rounded-xl for buttons, rounded-lg for small elements."
+  },
+  "surfaces_and_components": {
+    "header": "Crystal Glass: backdrop-blur-xl bg-white/70, 1px bottom border-white/40, sticky top-0 z-50.",
+    "cards": "Flat Solid: bg-white with 1px border-[#E5E4DE], no default shadow. Hover: -translate-y-1, shadow-[0_8px_32px_rgba(44,66,52,0.08)].",
+    "buttons": "Neumorphic Clay: bg-primary text-white shadow-sm border border-black/5 hover:bg-primary_hover transition-all duration-200. CTA buttons use accent color.",
+    "shadcn_overrides": "Do not use default generic Shadcn look. Round corners to match theme, use custom brand colors, remove heavy drop shadows."
+  },
+  "motion": {
+    "engine": "framer-motion, lenis (for smooth scroll)",
+    "interactions": "Hover states on all interactive elements. Click/press scale down (scale: 0.98).",
+    "page_transitions": "Staggered fade up (y: 20, opacity: 0) on load."
+  },
+  "assets_and_icons": {
+    "icon_library": "lucide-react",
+    "illustrations": "Use high-quality imagery over vector illustrations to maintain premium feel."
+  },
+  "media": {
+    "hero_image": {
+      "url": "https://images.unsplash.com/photo-1743611847941-79f1b9bd5626?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTJ8MHwxfHNlYXJjaHwzfHx0cmF2ZWwlMjBncm91cCUyMGZyaWVuZHMlMjBzdW5zZXR8ZW58MHx8fHwxNzc2MDgzNzMyfDA&ixlib=rb-4.1.0&q=85",
+      "description": "Friends watching sunset over the ocean, used for the main landing page hero background. Apply a bg-black/30 overlay if text is placed on top.",
+      "category": "hero"
+    },
+    "destinations": [
+      {
+        "location": "Paris",
+        "url": "https://images.unsplash.com/photo-1642947392578-b37fbd9a4d45?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTN8MHwxfHNlYXJjaHwxfHxwYXJpcyUyMGVpZmZlbCUyMHRvd2VyJTIwc3Vuc2V0fGVufDB8fHx8MTc3NjA4MzcyN3ww&ixlib=rb-4.1.0&q=85",
+        "description": "Paris Eiffel Tower sunset for destination recommendations"
+      },
+      {
+        "location": "London",
+        "url": "https://images.unsplash.com/photo-1694453517907-5e60ca5e548a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODh8MHwxfHNlYXJjaHwzfHxsb25kb24lMjBjaXR5JTIwdmlld3xlbnwwfHx8fDE3NzYwODM3MzJ8MA&ixlib=rb-4.1.0&q=85",
+        "description": "London city view for destination recommendations"
+      },
+      {
+        "location": "Madrid",
+        "url": "https://images.unsplash.com/photo-1735091761934-c17b8432fa97?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDV8MHwxfHNlYXJjaHwyfHxtYWRyaWQlMjBjaXR5JTIwc3RyZWV0fGVufDB8fHx8MTc3NjA4MzczMnww&ixlib=rb-4.1.0&q=85",
+        "description": "Madrid street view for destination recommendations"
+      },
+      {
+        "location": "Cabin Retreat",
+        "url": "https://images.unsplash.com/photo-1654885988340-ff157c8408d7?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzJ8MHwxfHNlYXJjaHwyfHxhaXJibmIlMjBjYWJpbiUyMGZvcmVzdHxlbnwwfHx8fDE3NzYwODM3Mjd8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Airbnb cabin in forest for accommodation options"
+      }
+    ],
+    "avatars": [
+      {
+        "url": "https://images.unsplash.com/photo-1603775493298-e06a5f21e46c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNTl8MHwxfHNlYXJjaHwxfHxzbWlsaW5nJTIwcG9ydHJhaXQlMjBwZXJzb258ZW58MHx8fHwxNzc2MDgzNzQxfDA&ixlib=rb-4.1.0&q=85",
+        "category": "user_avatar"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1672462478040-a5920e2c23d8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNTl8MHwxfHNlYXJjaHwyfHxzbWlsaW5nJTIwcG9ydHJhaXQlMjBwZXJzb258ZW58MHx8fHwxNzc2MDgzNzQxfDA&ixlib=rb-4.1.0&q=85",
+        "category": "user_avatar"
+      }
+    ],
+    "logos": [
+      {
+        "url": "https://images.pexels.com/photos/28905721/pexels-photo-28905721.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "category": "partner_logo"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1760037028485-d00dd2b8f6f0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODh8MHwxfHNlYXJjaHwzfHxicmFuZCUyMGxvZ28lMjBtaW5pbWFsaXN0fGVufDB8fHx8MTc3NjA4Mzc0MHww&ixlib=rb-4.1.0&q=85",
+        "category": "partner_logo"
+      }
+    ],
+    "abstract_background": {
+      "url": "https://images.unsplash.com/photo-1620257819748-e6d4a59f2ac3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA4Mzl8MHwxfHNlYXJjaHwyfHxtaW5pbWFsaXN0JTIwdHJhdmVsJTIwbWFwJTIwdGV4dHVyZXxlbnwwfHx8fDE3NzYwODM3MzJ8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Subtle abstract texture for dashboard backgrounds or empty states",
+      "category": "background"
+    }
+  },
+  "testing": {
+    "rules": "All interactive and key informational elements MUST include a data-testid attribute. Use kebab-case, role-based naming (e.g., login-form-submit-button)."
+  },
+  "special_instructions_for_main_agent": [
+    "Do NOT use generic Shadcn styling. Apply the custom colors, borders, and rounded corners defined here.",
+    "The Hero section must use the hero_image with a max bg-black/30 overlay.",
+    "Use Lenis for smooth scrolling on marketing pages.",
+    "The Dashboard must use the Control Room grid pattern (dense, high utility).",
+    "Use Framer Motion for micro-interactions (hover states, dialog popups).",
+    "All forms MUST use customized Shadcn form components, not native inputs."
+  ]
+}
