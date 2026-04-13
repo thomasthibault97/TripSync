@@ -1,113 +1,105 @@
 {
-  "theme": "Light",
-  "archetype": "1: Organic & Earthy",
-  "emotional_tone": "Excitement, wanderlust, trust, frictionless collaboration, premium travel-tech.",
+  "project_name": "TripSync",
+  "theme": "light",
+  "archetype": "Organic & Earthy",
+  "mood": "Editorial, Premium, Immersive, Warm",
   "colors": {
-    "background": "#F7F6F2",
+    "background": "#FDFBF7",
     "surface": "#FFFFFF",
-    "primary": "#2C4234",
-    "primary_hover": "#1F3025",
-    "accent": "#D96A53",
-    "accent_hover": "#C25944",
-    "text_main": "#1C1E1D",
-    "text_muted": "#5C605E",
-    "border": "#E5E4DE"
+    "primary": "#E07A5F",
+    "primary_hover": "#D26A4F",
+    "secondary": "#2A3B32",
+    "secondary_hover": "#1E2A24",
+    "accent": "#81B29A",
+    "text_primary": "#1A1A1A",
+    "text_secondary": "#5C5C5C",
+    "border": "#E8E4DF",
+    "glass_bg": "rgba(255, 255, 255, 0.7)",
+    "glass_border": "rgba(255, 255, 255, 0.4)",
+    "error": "#D9534F",
+    "success": "#5CB85C"
   },
   "typography": {
-    "heading_font": "Outfit",
-    "body_font": "DM Sans",
-    "scale": {
-      "h1": "text-5xl lg:text-6xl tracking-tight leading-none font-medium",
-      "h2": "text-3xl lg:text-4xl tracking-tight leading-tight font-medium",
-      "h3": "text-xl lg:text-2xl tracking-normal leading-snug font-medium",
-      "body": "text-base leading-relaxed",
-      "small": "text-sm uppercase tracking-[0.2em]"
-    }
+    "heading_font": "Cormorant Garamond, serif",
+    "body_font": "Outfit, sans-serif",
+    "h1": "text-4xl sm:text-5xl lg:text-6xl tracking-tighter font-medium leading-none text-secondary",
+    "h2": "text-2xl sm:text-3xl lg:text-4xl tracking-tight font-medium leading-tight text-secondary",
+    "h3": "text-xl sm:text-2xl tracking-tight font-medium text-secondary",
+    "body": "text-base leading-relaxed text-text_primary",
+    "label": "text-xs tracking-[0.2em] uppercase font-semibold text-text_secondary",
+    "imports": [
+      "@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Outfit:wght@300;400;500;600&display=swap');"
+    ]
   },
-  "layout_and_spacing": {
-    "spacing_scale": "p-4, p-8, p-12, p-16, p-24, p-32",
-    "marketing_grid": "Bento Grid (Tetris Mode): grid-cols-1 md:grid-cols-8 lg:grid-cols-12 with gap-8 to gap-12. Asymmetrical balance.",
-    "app_grid": "Control Room Grid: grid-cols-1 md:grid-cols-3 lg:grid-cols-4 with gap-6. Strict hierarchy.",
-    "corners": "rounded-2xl for large cards, rounded-xl for buttons, rounded-lg for small elements."
+  "spacing_and_layout": {
+    "section_padding": "py-20 md:py-32",
+    "container_padding": "px-6 md:px-12 max-w-7xl mx-auto",
+    "card_padding": "p-6 md:p-8",
+    "border_radius": "rounded-3xl",
+    "grid_bento": "grid grid-cols-1 md:grid-cols-12 gap-8"
   },
-  "surfaces_and_components": {
-    "header": "Crystal Glass: backdrop-blur-xl bg-white/70, 1px bottom border-white/40, sticky top-0 z-50.",
-    "cards": "Flat Solid: bg-white with 1px border-[#E5E4DE], no default shadow. Hover: -translate-y-1, shadow-[0_8px_32px_rgba(44,66,52,0.08)].",
-    "buttons": "Neumorphic Clay: bg-primary text-white shadow-sm border border-black/5 hover:bg-primary_hover transition-all duration-200. CTA buttons use accent color.",
-    "shadcn_overrides": "Do not use default generic Shadcn look. Round corners to match theme, use custom brand colors, remove heavy drop shadows."
+  "surface_strategies": {
+    "hero_overlay": "bg-black/30 bg-gradient-to-t from-black/60 via-transparent to-black/10",
+    "glassmorphism": "backdrop-blur-xl bg-white/70 border border-white/40 shadow-[0_8px_32px_rgba(0,0,0,0.04)]",
+    "cards": "bg-white border border-[#E8E4DF] shadow-sm hover:shadow-md transition-all duration-300 rounded-3xl overflow-hidden",
+    "panels": "bg-[#F7F5F0] rounded-3xl p-6"
   },
-  "motion": {
-    "engine": "framer-motion, lenis (for smooth scroll)",
-    "interactions": "Hover states on all interactive elements. Click/press scale down (scale: 0.98).",
-    "page_transitions": "Staggered fade up (y: 20, opacity: 0) on load."
-  },
-  "assets_and_icons": {
-    "icon_library": "lucide-react",
-    "illustrations": "Use high-quality imagery over vector illustrations to maintain premium feel."
+  "animations": {
+    "scroll": "lenis smooth scrolling for premium feel",
+    "hover_card": "hover:-translate-y-1 hover:shadow-lg transition-transform duration-300",
+    "stagger": "Framer motion staggered children (delay: 0.1s)",
+    "page_transition": "Fade in with subtle slide up (y: 20 -> 0)"
   },
   "media": {
-    "hero_image": {
-      "url": "https://images.unsplash.com/photo-1743611847941-79f1b9bd5626?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTJ8MHwxfHNlYXJjaHwzfHx0cmF2ZWwlMjBncm91cCUyMGZyaWVuZHMlMjBzdW5zZXR8ZW58MHx8fHwxNzc2MDgzNzMyfDA&ixlib=rb-4.1.0&q=85",
-      "description": "Friends watching sunset over the ocean, used for the main landing page hero background. Apply a bg-black/30 overlay if text is placed on top.",
-      "category": "hero"
+    "landing_hero": {
+      "url": "https://images.unsplash.com/photo-1680422273918-5f1d443272a5?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzR8MHwxfHNlYXJjaHwxfHxiZWFjaCUyMHJlc29ydCUyMGFlcmlhbHxlbnwwfHx8fDE3NzYxMjA3MTl8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Aerial view of a resort on a tropical island. Use for the main Landing page background."
     },
-    "destinations": [
-      {
-        "location": "Paris",
-        "url": "https://images.unsplash.com/photo-1642947392578-b37fbd9a4d45?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTN8MHwxfHNlYXJjaHwxfHxwYXJpcyUyMGVpZmZlbCUyMHRvd2VyJTIwc3Vuc2V0fGVufDB8fHx8MTc3NjA4MzcyN3ww&ixlib=rb-4.1.0&q=85",
-        "description": "Paris Eiffel Tower sunset for destination recommendations"
-      },
-      {
-        "location": "London",
-        "url": "https://images.unsplash.com/photo-1694453517907-5e60ca5e548a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODh8MHwxfHNlYXJjaHwzfHxsb25kb24lMjBjaXR5JTIwdmlld3xlbnwwfHx8fDE3NzYwODM3MzJ8MA&ixlib=rb-4.1.0&q=85",
-        "description": "London city view for destination recommendations"
-      },
-      {
-        "location": "Madrid",
-        "url": "https://images.unsplash.com/photo-1735091761934-c17b8432fa97?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDV8MHwxfHNlYXJjaHwyfHxtYWRyaWQlMjBjaXR5JTIwc3RyZWV0fGVufDB8fHx8MTc3NjA4MzczMnww&ixlib=rb-4.1.0&q=85",
-        "description": "Madrid street view for destination recommendations"
-      },
-      {
-        "location": "Cabin Retreat",
-        "url": "https://images.unsplash.com/photo-1654885988340-ff157c8408d7?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzJ8MHwxfHNlYXJjaHwyfHxhaXJibmIlMjBjYWJpbiUyMGZvcmVzdHxlbnwwfHx8fDE3NzYwODM3Mjd8MA&ixlib=rb-4.1.0&q=85",
-        "description": "Airbnb cabin in forest for accommodation options"
-      }
-    ],
-    "avatars": [
-      {
-        "url": "https://images.unsplash.com/photo-1603775493298-e06a5f21e46c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNTl8MHwxfHNlYXJjaHwxfHxzbWlsaW5nJTIwcG9ydHJhaXQlMjBwZXJzb258ZW58MHx8fHwxNzc2MDgzNzQxfDA&ixlib=rb-4.1.0&q=85",
-        "category": "user_avatar"
-      },
-      {
-        "url": "https://images.unsplash.com/photo-1672462478040-a5920e2c23d8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNTl8MHwxfHNlYXJjaHwyfHxzbWlsaW5nJTIwcG9ydHJhaXQlMjBwZXJzb258ZW58MHx8fHwxNzc2MDgzNzQxfDA&ixlib=rb-4.1.0&q=85",
-        "category": "user_avatar"
-      }
-    ],
-    "logos": [
-      {
-        "url": "https://images.pexels.com/photos/28905721/pexels-photo-28905721.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-        "category": "partner_logo"
-      },
-      {
-        "url": "https://images.unsplash.com/photo-1760037028485-d00dd2b8f6f0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODh8MHwxfHNlYXJjaHwzfHxicmFuZCUyMGxvZ28lMjBtaW5pbWFsaXN0fGVufDB8fHx8MTc3NjA4Mzc0MHww&ixlib=rb-4.1.0&q=85",
-        "category": "partner_logo"
-      }
-    ],
-    "abstract_background": {
-      "url": "https://images.unsplash.com/photo-1620257819748-e6d4a59f2ac3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA4Mzl8MHwxfHNlYXJjaHwyfHxtaW5pbWFsaXN0JTIwdHJhdmVsJTIwbWFwJTIwdGV4dHVyZXxlbnwwfHx8fDE3NzYwODM3MzJ8MA&ixlib=rb-4.1.0&q=85",
-      "description": "Subtle abstract texture for dashboard backgrounds or empty states",
-      "category": "background"
+    "trip_card_1": {
+      "url": "https://images.pexels.com/photos/1029005/pexels-photo-1029005.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Santorini sunset. Use for Destination cards or Recommendations."
+    },
+    "trip_card_2": {
+      "url": "https://images.unsplash.com/photo-1563021658-50fdb28875f8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzd8MHwxfHNlYXJjaHwzfHx0b2t5byUyMGNpdHklMjBuaWdodHxlbnwwfHx8fDE3NzYxMjA3MTV8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Tokyo city night. Use for Destination cards."
+    },
+    "social_invite": {
+      "url": "https://images.unsplash.com/photo-1506869640319-fe1a24fd76dc?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjd8MHwxfHNlYXJjaHwyfHxncm91cCUyMGZyaWVuZHMlMjB0cmF2ZWx8ZW58MHx8fHwxNzc2MTIwNzE1fDA&ixlib=rb-4.1.0&q=85",
+      "description": "Friends silhouette on mountain. Use for Invite section or Trip Workspace."
+    },
+    "accommodation_1": {
+      "url": "https://images.unsplash.com/photo-1775660922989-f0c624413269?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTJ8MHwxfHNlYXJjaHw0fHxtb2Rlcm4lMjBob3RlbCUyMHJvb20lMjBpbnRlcmlvciUyMGx1eHVyeXxlbnwwfHx8fDE3NzYxMjA3MDJ8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Modern hotel room. Use for Accommodation Recommendations tab."
     }
   },
-  "testing": {
-    "rules": "All interactive and key informational elements MUST include a data-testid attribute. Use kebab-case, role-based naming (e.g., login-form-submit-button)."
+  "component_instructions": {
+    "header": "Always sticky with z-50. Use crystal glassmorphism (`backdrop-blur-xl bg-white/80` or `#FDFBF7/80`). Avoid generic Vercel look.",
+    "buttons": "Primary buttons: `bg-[#E07A5F] text-white rounded-full px-8 py-3 hover:bg-[#D26A4F] font-medium`. Secondary: `bg-white text-[#2A3B32] border border-[#E8E4DF] rounded-full hover:bg-[#F7F5F0]`.",
+    "inputs": "Use Shadcn components but override borders to be soft. Add `focus:ring-2 focus:ring-[#81B29A] focus:border-transparent`. Use large padding `p-4`.",
+    "calendar": "Shadcn calendar. Remove strict borders. Emphasize dates with `bg-[#81B29A]/20` for selected/available date ranges.",
+    "tabs": "Override Shadcn tabs default underline. Use a pill-shaped indicator or soft background for the active tab (`bg-[#E8E4DF] rounded-full`).",
+    "bento_grid": "For recommendations/features. Use Mode A 'Tetris' Grid. Asymmetrical spans. Ensure `h-full` and `object-cover` on all images within bento cells."
   },
-  "special_instructions_for_main_agent": [
-    "Do NOT use generic Shadcn styling. Apply the custom colors, borders, and rounded corners defined here.",
-    "The Hero section must use the hero_image with a max bg-black/30 overlay.",
-    "Use Lenis for smooth scrolling on marketing pages.",
-    "The Dashboard must use the Control Room grid pattern (dense, high utility).",
-    "Use Framer Motion for micro-interactions (hover states, dialog popups).",
-    "All forms MUST use customized Shadcn form components, not native inputs."
-  ]
+  "specific_pages": {
+    "Landing": "Hero section MUST be immersive. Full width/height image (`min-h-[85vh]`). A floating glassmorphism 'Booking/Search' bar should overlap the bottom center of the hero image. Typography should be huge (Cormorant Garamond).",
+    "Dashboard": "Clean 'Control Room' layout but with generous spacing. Cards shouldn't look like standard admin cards; they should feel like photo albums or editorial highlights.",
+    "TripWorkspace": "Split screen layout. Left: beautiful sticky summary of the trip with an image. Right: Scrollable action cards (Invite Friends, Fill Preferences).",
+    "PreferencesForm": "Typeform-style interaction. One big question at a time or a long-scroll seamless form with massive typography. Avoid dense traditional inputs.",
+    "AvailabilityHeatmap": "A functional visual treat. Use varying opacity of Accent color (`#81B29A`) to show guest availability density. It should look like an organic heatmap, not an Excel file.",
+    "Recommendations": "Bento layout with high-quality images. Score rings should use Primary color. Clear tabs for Accommodations / Restaurants / Transport.",
+    "GuestAvailability": "A public page. Must look incredibly welcoming. Big hero image of the destination. Simple, frictionless form.",
+    "DestinationDetail": "Highly visual header. Horizontal scrollable tabs below. Clean list of options with high-contrast bold titles and soft descriptive text.",
+    "SlotPriceComparison": "Use Recharts/Shadcn charts but styled cleanly. Remove grid lines, use soft bar colors (Accent for cheap, Primary for expensive).",
+    "FlightCoordination": "Visualize synchronized arrivals with a timeline or map-like UI. Use a clean list grouped by time of day."
+  },
+  "accessibility": {
+    "contrast": "Text over hero images MUST have a background overlay (`bg-black/40`) or subtle text-shadow to guarantee legibility. Check contrast for `#E07A5F` against white.",
+    "interactive": "All buttons, links, and forms MUST include `data-testid` (e.g., `data-testid='landing-hero-cta'`). Provide focus visible rings.",
+    "motion": "Respect `prefers-reduced-motion` for all Framer Motion and CSS transitions."
+  },
+  "icons": {
+    "library": "lucide-react",
+    "stroke_width": 1.5,
+    "size_default": "w-5 h-5"
+  }
 }

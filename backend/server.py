@@ -1205,6 +1205,16 @@ async def get_availability_heatmap(trip_id: str, user=Depends(get_current_user))
                 pass
         most_probable_ranges.sort(key=lambda x: (x["full_overlap_count"], x["days"]), reverse=True)
 
+    # Auto-suggestion: detect if ALL participants overlap on any range
+    auto_lock_suggestion = None
+    if most_probable_ranges and prefs_submitted >= 2:
+        top = most_probable_ranges[0]
+        if top["full_overlap_count"] == prefs_submitted:
+            auto_lock_suggestion = {
+                "start": top["start"], "end": top["end"], "days": top["days"],
+                "message": f"Everyone is available {top['start']} to {top['end']}! Lock these dates?"
+            }
+
     return {
         "heatmap": heatmap,
         "total_participants": total_participants,
@@ -1214,6 +1224,7 @@ async def get_availability_heatmap(trip_id: str, user=Depends(get_current_user))
         "best_weekends": best_weekends[:8],
         "best_periods": best_periods[:6],
         "most_probable_ranges": most_probable_ranges[:10],
+        "auto_lock_suggestion": auto_lock_suggestion,
         "locked_dates": trip.get("locked_dates"),
         "is_owner": trip.get("owner_id") == user["_id"],
         "guest_share_token": trip.get("guest_share_token", ""),
@@ -1251,6 +1262,8 @@ async def lock_dates(trip_id: str, input: LockDatesInput, user=Depends(get_curre
                 f"{user.get('name','')} locked the trip dates: {input.start} to {input.end}",
                 trip_id, "dates"
             )
+    # Send mock emails to guests with emails
+    await notify_guests_dates_locked(trip_id, input.start, input.end, user.get("name", ""))
     return {"message": "Dates locked", "locked_dates": locked_dates}
 
 @api_router.post("/trips/{trip_id}/unlock-dates")
@@ -1312,8 +1325,20 @@ async def get_guest_trip_info(token: str):
         "participant_count": len(trip.get("participants", [])),
         "group_size": trip.get("group_size", 4),
         "locked_dates": trip.get("locked_dates"),
-        "guest_submissions": [{"name": g.get("name", ""), "date_ranges": g.get("date_ranges", [])} for g in guests]
+        "guest_submissions": [{"name": g.get("name", ""), "date_ranges": g.get("date_ranges", []), "email": g.get("email", "")} for g in guests]
     }
+
+# Guest can check if they already submitted (for edit on revisit)
+@api_router.get("/trips/guest/{token}/check/{guest_name}")
+async def check_guest_submission(token: str, guest_name: str):
+    trip = await db.trips.find_one({"guest_share_token": token})
+    if not trip:
+        raise HTTPException(status_code=404, detail="Invalid share link")
+    trip_id = str(trip["_id"])
+    existing = await db.guest_availability.find_one({"trip_id": trip_id, "name": guest_name.strip()}, {"_id": 0})
+    if existing:
+        return {"found": True, "date_ranges": existing.get("date_ranges", []), "email": existing.get("email", "")}
+    return {"found": False}
 
 @api_router.post("/trips/guest/{token}/submit")
 async def submit_guest_availability(token: str, input: GuestAvailabilityInput):
@@ -1345,6 +1370,327 @@ async def submit_guest_availability(token: str, input: GuestAvailabilityInput):
             trip_id, "guest"
         )
     return {"message": "Availability submitted! The trip organizer will see your dates."}
+
+# ---- MOCK EMAIL SERVICE ----
+email_log = []  # In-memory log of sent emails
+
+async def send_mock_email(to_email: str, subject: str, body: str):
+    """Mock email sender - logs to memory and console"""
+    entry = {
+        "to": to_email, "subject": subject, "body": body,
+        "sent_at": datetime.now(timezone.utc).isoformat(), "status": "sent"
+    }
+    email_log.append(entry)
+    logger.info(f"[MOCK EMAIL] To: {to_email} | Subject: {subject}")
+    return entry
+
+async def notify_guests_dates_locked(trip_id: str, start: str, end: str, locker_name: str):
+    """Send mock emails to all guests with emails when dates are locked"""
+    guests = await db.guest_availability.find({"trip_id": trip_id, "email": {"$ne": ""}}, {"_id": 0}).to_list(100)
+    trip = await db.trips.find_one({"_id": ObjectId(trip_id)}, {"name": 1})
+    trip_name = trip.get("name", "Trip") if trip else "Trip"
+    for g in guests:
+        if g.get("email"):
+            await send_mock_email(
+                g["email"],
+                f"Dates confirmed for {trip_name}!",
+                f"Hi {g.get('name', 'there')}!\n\n"
+                f"{locker_name} has locked the travel dates for {trip_name}:\n"
+                f"{start} to {end}\n\n"
+                f"Start packing! The group has agreed on these dates.\n\n"
+                f"— TripSync"
+            )
+
+@api_router.get("/email-log")
+async def get_email_log(user=Depends(get_current_user)):
+    """Debug endpoint to see all mock emails sent"""
+    return {"emails": email_log[-50:], "total": len(email_log)}
+
+# ---- SLOT PRICE COMPARISON ----
+def get_slot_price(dest: dict, departure_city: str, start_date: str, end_date: str, num_travelers: int = 1) -> dict:
+    """Generate simulated but realistic prices for a specific date slot"""
+    import hashlib
+    base = dest.get("avg_budget_per_person", 400)
+    seed_str = f"{dest['id']}-{departure_city}-{start_date}-{end_date}"
+    seed_val = int(hashlib.md5(seed_str.encode()).hexdigest()[:8], 16)
+    random.seed(seed_val)
+
+    # Date-based price factors (weekends more expensive, summer peak)
+    try:
+        s = datetime.strptime(start_date, "%Y-%m-%d")
+        e = datetime.strptime(end_date, "%Y-%m-%d")
+        nights = max((e - s).days, 1)
+        month = s.month
+        # Peak season multiplier
+        peak_mult = 1.3 if month in [6, 7, 8, 12] else 1.0 if month in [3, 4, 5, 9, 10] else 0.85
+        # Weekend departure surcharge
+        weekend_mult = 1.1 if s.weekday() >= 4 else 0.95
+    except Exception:
+        nights = 3
+        peak_mult = 1.0
+        weekend_mult = 1.0
+
+    # Flight price per person
+    transport = dest.get("transport_from", {})
+    base_flight = 80
+    flight_link = ""
+    for city, options in transport.items():
+        if departure_city.lower() in city.lower() or city.lower() in departure_city.lower():
+            for mode, details in options.items():
+                if mode == "plane":
+                    base_flight = details.get("price", 80)
+                    flight_link = details.get("link", "")
+                    break
+            break
+
+    flight_price = round(base_flight * peak_mult * weekend_mult * random.uniform(0.8, 1.3))
+
+    # Hotel price per night (cheapest accommodation)
+    accoms = dest.get("accommodations", [])
+    cheapest_accom = min(accoms, key=lambda a: a.get("price_night", 999)) if accoms else {"price_night": 80, "name": "Average Hotel", "link": ""}
+    hotel_night = round(cheapest_accom["price_night"] * peak_mult * random.uniform(0.85, 1.2))
+    hotel_total = hotel_night * nights
+
+    # Per person total
+    per_person = flight_price + hotel_total + round(nights * 30 * random.uniform(0.8, 1.2))  # food/activities
+    group_total = per_person * num_travelers
+
+    return {
+        "flight_price_pp": flight_price,
+        "hotel_per_night": hotel_night,
+        "hotel_total": hotel_total,
+        "nights": nights,
+        "per_person_total": per_person,
+        "group_total": group_total,
+        "num_travelers": num_travelers,
+        "accommodation": {"name": cheapest_accom.get("name", ""), "link": cheapest_accom.get("link", "")},
+        "flight_link": flight_link or f"https://www.skyscanner.com/transport/flights/{departure_city[:3].lower()}/{dest['id'][:3]}/",
+        "peak_factor": round(peak_mult, 2),
+        "currency": dest.get("currency", "EUR")
+    }
+
+@api_router.get("/trips/{trip_id}/slot-prices")
+async def get_slot_prices(trip_id: str, user=Depends(get_current_user)):
+    """Compare prices across all overlapping date slots for the group"""
+    trip = await db.trips.find_one({"_id": ObjectId(trip_id)})
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found")
+
+    prefs = await db.preferences.find({"trip_id": trip_id}, {"_id": 0}).to_list(100)
+    dests = await db.destinations.find({}, {"_id": 0}).to_list(100)
+
+    # Collect all date ranges from all participants
+    all_ranges = []
+    departure_cities = set()
+    for p in prefs:
+        dep_city = p.get("departure_city", "Paris")
+        if dep_city:
+            departure_cities.add(dep_city)
+        for dr in p.get("date_ranges", []):
+            all_ranges.append({"start": dr["start"], "end": dr["end"], "user": p.get("user_name", "")})
+        if p.get("date_start") and p.get("date_end"):
+            all_ranges.append({"start": p["date_start"], "end": p["date_end"], "user": p.get("user_name", "")})
+
+    # Find unique ranges where multiple users overlap
+    seen = set()
+    unique_ranges = []
+    for r in all_ranges:
+        key = f"{r['start']}_{r['end']}"
+        if key not in seen:
+            seen.add(key)
+            unique_ranges.append(r)
+
+    num_travelers = len(prefs) or 1
+    primary_city = list(departure_cities)[0] if departure_cities else "Paris"
+
+    # For each voted/recommended destination, compute prices per slot
+    slot_comparisons = []
+    for dest in dests[:5]:  # top 5 destinations
+        slots = []
+        for r in unique_ranges:
+            prices = get_slot_price(dest, primary_city, r["start"], r["end"], num_travelers)
+            slots.append({
+                "start": r["start"], "end": r["end"],
+                **prices
+            })
+        slots.sort(key=lambda s: s["per_person_total"])
+        cheapest = slots[0] if slots else None
+        slot_comparisons.append({
+            "destination": {"id": dest["id"], "name": dest["name"], "country": dest["country"], "image": dest["image"]},
+            "slots": slots,
+            "cheapest_slot": cheapest,
+            "accommodations": dest.get("accommodations", []),
+            "restaurants": dest.get("restaurants", [])
+        })
+
+    # Sort destinations by cheapest option
+    slot_comparisons.sort(key=lambda x: x["cheapest_slot"]["per_person_total"] if x.get("cheapest_slot") else 9999)
+
+    return {
+        "comparisons": slot_comparisons,
+        "departure_cities": list(departure_cities),
+        "num_travelers": num_travelers,
+        "slots_count": len(unique_ranges)
+    }
+
+# ---- FLIGHT COORDINATION ----
+@api_router.get("/trips/{trip_id}/flight-coordination")
+async def get_flight_coordination(trip_id: str, user=Depends(get_current_user)):
+    """Suggest flights so group members from different cities arrive within 1h of each other"""
+    trip = await db.trips.find_one({"_id": ObjectId(trip_id)})
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found")
+
+    prefs = await db.preferences.find({"trip_id": trip_id}, {"_id": 0}).to_list(100)
+    dests = await db.destinations.find({}, {"_id": 0}).to_list(100)
+
+    # Get locked dates or best range
+    locked = trip.get("locked_dates")
+    if not locked:
+        return {"coordination": [], "message": "Lock dates first to coordinate flights"}
+
+    travel_start = locked["start"]
+    travel_end = locked["end"]
+
+    # Gather departure/return cities per participant
+    travelers = []
+    for p in prefs:
+        dep_city = p.get("departure_city", "").strip()
+        ret_city = p.get("return_city", "").strip() if not p.get("same_return_city", True) else dep_city
+        dep_time_pref = p.get("departure_time_preference", "flexible")
+        ret_time_pref = p.get("return_time_preference", "flexible")
+        if dep_city:
+            travelers.append({
+                "name": p.get("user_name", "Unknown"),
+                "departure_city": dep_city,
+                "return_city": ret_city or dep_city,
+                "dep_time_pref": dep_time_pref,
+                "ret_time_pref": ret_time_pref
+            })
+
+    if not travelers:
+        return {"coordination": [], "message": "No departure cities specified yet"}
+
+    # For each destination, generate coordinated flight suggestions
+    coordination_results = []
+    for dest in dests[:5]:
+        transport_from = dest.get("transport_from", {})
+
+        # Generate arrival flight suggestions per traveler
+        outbound_flights = []
+        import hashlib
+        for t in travelers:
+            # Find transport options from this city
+            matched_transport = None
+            for city, options in transport_from.items():
+                if t["departure_city"].lower() in city.lower() or city.lower() in t["departure_city"].lower():
+                    matched_transport = options
+                    break
+
+            if matched_transport and "plane" in matched_transport:
+                flight_info = matched_transport["plane"]
+                duration_str = flight_info.get("duration", "2h")
+                base_price = flight_info.get("price", 80)
+
+                # Generate 3 flight options at different times
+                time_slots = []
+                if t["dep_time_pref"] == "very_early":
+                    time_slots = ["06:00", "07:30", "08:00"]
+                elif t["dep_time_pref"] == "morning":
+                    time_slots = ["09:00", "10:30", "11:00"]
+                elif t["dep_time_pref"] == "afternoon":
+                    time_slots = ["13:00", "14:30", "16:00"]
+                elif t["dep_time_pref"] == "evening":
+                    time_slots = ["18:00", "19:30", "21:00"]
+                else:
+                    time_slots = ["08:00", "12:00", "17:00"]
+
+                for i, dep_time in enumerate(time_slots):
+                    seed_val = int(hashlib.md5(f"{t['departure_city']}-{dest['id']}-{dep_time}-{travel_start}".encode()).hexdigest()[:8], 16)
+                    random.seed(seed_val)
+                    price = round(base_price * random.uniform(0.8, 1.3))
+
+                    # Calculate arrival time
+                    dur_hours = int(duration_str.replace("h", "").split("m")[0]) if "h" in duration_str else 1
+                    dur_mins = int(duration_str.split("h")[1].replace("min", "").strip()) if "h" in duration_str and len(duration_str.split("h")) > 1 and duration_str.split("h")[1].strip() else 0
+                    dep_h, dep_m = int(dep_time.split(":")[0]), int(dep_time.split(":")[1])
+                    arr_h = dep_h + dur_hours
+                    arr_m = dep_m + dur_mins
+                    if arr_m >= 60:
+                        arr_h += 1
+                        arr_m -= 60
+                    arrival_time = f"{arr_h:02d}:{arr_m:02d}"
+
+                    outbound_flights.append({
+                        "traveler": t["name"],
+                        "from": t["departure_city"],
+                        "to": dest["name"],
+                        "departure_time": dep_time,
+                        "arrival_time": arrival_time,
+                        "duration": duration_str,
+                        "price": price,
+                        "date": travel_start,
+                        "link": flight_info.get("link", ""),
+                        "option_index": i
+                    })
+            else:
+                # No direct flight found, generate generic
+                for i, dep_time in enumerate(["09:00", "13:00", "18:00"]):
+                    outbound_flights.append({
+                        "traveler": t["name"],
+                        "from": t["departure_city"],
+                        "to": dest["name"],
+                        "departure_time": dep_time,
+                        "arrival_time": f"{int(dep_time.split(':')[0])+2:02d}:00",
+                        "duration": "2h",
+                        "price": round(80 * random.uniform(0.8, 1.3)),
+                        "date": travel_start,
+                        "link": f"https://www.skyscanner.com/transport/flights/{t['departure_city'][:3].lower()}/{dest['id'][:3]}",
+                        "option_index": i
+                    })
+
+        # Find best combination where everyone arrives within 1h
+        best_combo = None
+        best_spread = 999
+        if outbound_flights:
+            traveler_names = list(set(f["traveler"] for f in outbound_flights))
+            traveler_flights = {name: [f for f in outbound_flights if f["traveler"] == name] for name in traveler_names}
+
+            # Simple greedy: try all option_index combos (max 3^n but n is small)
+            from itertools import product
+            options_per = [list(range(min(3, len(traveler_flights.get(n, []))))) for n in traveler_names]
+            for combo in product(*options_per):
+                selected = []
+                for idx, name in enumerate(traveler_names):
+                    flights = traveler_flights.get(name, [])
+                    if combo[idx] < len(flights):
+                        selected.append(flights[combo[idx]])
+                if len(selected) == len(traveler_names):
+                    arrivals = [int(f["arrival_time"].replace(":", "")) for f in selected]
+                    spread = max(arrivals) - min(arrivals)
+                    total_cost = sum(f["price"] for f in selected)
+                    if spread < best_spread or (spread == best_spread and total_cost < (best_combo["total_cost"] if best_combo else 9999)):
+                        best_spread = spread
+                        best_combo = {
+                            "flights": selected,
+                            "arrival_spread_mins": spread // 100 * 60 + spread % 100,
+                            "total_cost": total_cost,
+                            "within_1h": spread <= 100  # 1h = 100 in HHMM
+                        }
+
+        coordination_results.append({
+            "destination": {"id": dest["id"], "name": dest["name"], "image": dest["image"]},
+            "best_combination": best_combo,
+            "all_flights": outbound_flights
+        })
+
+    coordination_results.sort(key=lambda x: x["best_combination"]["arrival_spread_mins"] if x.get("best_combination") else 9999)
+
+    return {
+        "coordination": coordination_results,
+        "travel_dates": {"start": travel_start, "end": travel_end},
+        "travelers": travelers
+    }
 
 # ---- GROUP POLLING ----
 class PollCreateInput(BaseModel):
@@ -2181,6 +2527,8 @@ async def seed_data():
     await db.trips.create_index("owner_id")
     await db.preferences.create_index([("trip_id", 1), ("user_id", 1)], unique=True)
     await db.votes.create_index([("trip_id", 1), ("user_id", 1), ("destination_id", 1)], unique=True)
+    await db.guest_availability.create_index([("trip_id", 1), ("name", 1)], unique=True)
+    await db.trips.create_index("guest_share_token", sparse=True)
     # Write test credentials
     cred_dir = Path("/app/memory")
     cred_dir.mkdir(exist_ok=True)
