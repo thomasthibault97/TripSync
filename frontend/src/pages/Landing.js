@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { MapPin, Users, Sparkles, ArrowRight, ChevronRight, Globe, Calendar, Wallet, CheckCircle, Smartphone, Sun, CreditCard, Bell, MessageSquare, Star } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const HERO_IMG = "https://images.unsplash.com/photo-1743611847941-79f1b9bd5626?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTJ8MHwxfHNlYXJjaHwzfHx0cmF2ZWwlMjBncm91cCUyMGZyaWVuZHMlMjBzdW5zZXR8ZW58MHx8fHwxNzc2MDgzNzMyfDA&ixlib=rb-4.1.0&q=85&w=1920";
+const HERO_IMG = "https://images.unsplash.com/photo-1680422273918-5f1d443272a5?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzR8MHwxfHNlYXJjaHwxfHxiZWFjaCUyMHJlc29ydCUyMGFlcmlhbHxlbnwwfHx8fDE3NzYxMjA3MTl8MA&ixlib=rb-4.1.0&q=85&w=1920";
 
 const tripTypes = [
   { icon: "🎉", label: "EVG / Bachelor", tag: "evg" },
@@ -55,29 +55,29 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-[#F7F6F2]">
       {/* Navbar */}
-      <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-white/40" data-testid="landing-navbar">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+      <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-white/20" data-testid="landing-navbar">
+        <div className="max-w-7xl mx-auto px-6 md:px-12 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <Globe className="w-7 h-7 text-[#2C4234]" />
-            <span className="font-['Outfit'] font-semibold text-xl text-[#1C1E1D]">TripSync</span>
+            <Globe className="w-7 h-7 text-[#2A3B32]" />
+            <span className="font-['Cormorant_Garamond'] font-semibold text-xl text-[#1A1A1A]">TripSync</span>
           </Link>
           <div className="hidden md:flex items-center gap-8">
-            <a href="#how-it-works" className="text-sm text-[#5C605E] hover:text-[#1C1E1D] transition-colors">How it works</a>
-            <a href="#destinations" className="text-sm text-[#5C605E] hover:text-[#1C1E1D] transition-colors">Destinations</a>
-            <a href="#trip-types" className="text-sm text-[#5C605E] hover:text-[#1C1E1D] transition-colors">Trip Types</a>
+            <a href="#how-it-works" className="text-sm font-['Outfit'] text-[#5C5C5C] hover:text-[#1A1A1A] transition-colors">How it works</a>
+            <a href="#destinations" className="text-sm font-['Outfit'] text-[#5C5C5C] hover:text-[#1A1A1A] transition-colors">Destinations</a>
+            <a href="#trip-types" className="text-sm font-['Outfit'] text-[#5C5C5C] hover:text-[#1A1A1A] transition-colors">Trip Types</a>
           </div>
           <div className="flex items-center gap-3">
             {user ? (
               <Link to="/dashboard">
-                <Button className="bg-[#2C4234] hover:bg-[#1F3025] text-white rounded-xl px-5" data-testid="go-to-dashboard-btn">Dashboard</Button>
+                <Button className="bg-[#2A3B32] hover:bg-[#1E2A24] text-white rounded-full px-6 font-['Outfit']" data-testid="go-to-dashboard-btn">Dashboard</Button>
               </Link>
             ) : (
               <>
                 <Link to="/auth" className="hidden md:block">
-                  <Button variant="ghost" className="text-[#2C4234] hover:bg-[#2C4234]/5 rounded-xl" data-testid="login-btn">Log in</Button>
+                  <Button variant="ghost" className="text-[#2A3B32] hover:bg-[#2A3B32]/5 rounded-full font-['Outfit']" data-testid="login-btn">Log in</Button>
                 </Link>
                 <Link to="/auth">
-                  <Button className="bg-[#D96A53] hover:bg-[#C25944] text-white rounded-xl px-5" data-testid="get-started-btn">
+                  <Button className="bg-[#E07A5F] hover:bg-[#D26A4F] text-white rounded-full px-6 font-['Outfit']" data-testid="get-started-btn">
                     Get Started <ArrowRight className="w-4 h-4 ml-1" />
                   </Button>
                 </Link>
@@ -88,31 +88,31 @@ export default function Landing() {
       </nav>
 
       {/* Hero */}
-      <section className="relative pt-16 overflow-hidden" data-testid="hero-section">
+      <section className="relative pt-16 overflow-hidden min-h-[85vh] flex items-end" data-testid="hero-section">
         <div className="absolute inset-0">
-          <img src={HERO_IMG} alt="Friends traveling" className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-black/40" />
+          <img src={HERO_IMG} alt="Travel destination" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-black/10" />
         </div>
-        <div className="relative max-w-7xl mx-auto px-6 py-32 md:py-44 lg:py-56">
-          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7 }} className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 bg-white/15 backdrop-blur-md rounded-full px-4 py-1.5 mb-6 border border-white/20">
-              <Sparkles className="w-4 h-4 text-[#D96A53]" />
-              <span className="text-white/90 text-sm font-medium">AI-Powered Group Travel Planning</span>
+        <div className="relative max-w-7xl mx-auto px-6 md:px-12 py-20 md:py-32 w-full">
+          <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }} className="max-w-3xl">
+            <div className="inline-flex items-center gap-2 glass-card rounded-full px-5 py-2 mb-8">
+              <Sparkles className="w-4 h-4 text-[#E07A5F]" />
+              <span className="text-[#1A1A1A] text-sm font-['Outfit'] font-medium">AI-Powered Group Travel Planning</span>
             </div>
-            <h1 className="font-['Outfit'] text-4xl sm:text-5xl lg:text-6xl font-medium text-white tracking-tight leading-none mb-6">
+            <h1 className="font-['Cormorant_Garamond'] text-5xl sm:text-6xl lg:text-8xl font-medium text-white tracking-tighter leading-[0.9] mb-8">
               Plan group trips<br />without the chaos
             </h1>
-            <p className="text-lg text-white/80 mb-8 max-w-lg leading-relaxed">
+            <p className="text-lg md:text-xl text-white/80 mb-10 max-w-lg leading-relaxed font-['Outfit'] font-light">
               Collect everyone's preferences, find the perfect destination, and book together. From bachelor weekends to family holidays.
             </p>
-            <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex flex-col sm:flex-row gap-4">
               <Link to={user ? "/create-trip" : "/auth"}>
-                <Button className="bg-[#D96A53] hover:bg-[#C25944] text-white rounded-xl px-8 py-6 text-base" data-testid="hero-cta-btn">
+                <Button className="bg-[#E07A5F] hover:bg-[#D26A4F] text-white rounded-full px-10 py-7 text-base font-['Outfit'] font-medium shadow-lg shadow-[#E07A5F]/20" data-testid="hero-cta-btn">
                   Plan a Trip Now <ArrowRight className="w-5 h-5 ml-2" />
                 </Button>
               </Link>
               <a href="#how-it-works">
-                <Button variant="outline" className="bg-white/10 hover:bg-white/20 text-white border-white/30 rounded-xl px-8 py-6 text-base backdrop-blur-sm">
+                <Button variant="outline" className="bg-white/10 hover:bg-white/20 text-white border-white/30 rounded-full px-10 py-7 text-base backdrop-blur-md font-['Outfit']">
                   See How It Works
                 </Button>
               </a>
@@ -122,11 +122,11 @@ export default function Landing() {
       </section>
 
       {/* Sound Familiar - Pain Points */}
-      <section className="py-24 px-6 bg-white" data-testid="pain-points-section">
+      <section className="py-28 px-6 md:px-12 bg-white" data-testid="pain-points-section">
         <div className="max-w-5xl mx-auto text-center">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
-            <h2 className="font-['Outfit'] text-3xl lg:text-4xl font-bold text-[#1C1E1D] tracking-tight mb-4">Sound familiar?</h2>
-            <p className="text-[#5C605E] text-base lg:text-lg max-w-2xl mx-auto mb-16 leading-relaxed">
+            <h2 className="font-['Cormorant_Garamond'] text-3xl lg:text-5xl font-medium text-[#2A3B32] tracking-tight mb-4">Sound familiar?</h2>
+            <p className="font-['Outfit'] text-[#5C5C5C] text-base lg:text-lg max-w-2xl mx-auto mb-16 leading-relaxed">
               Planning group trips usually means endless chats, mismatched schedules, and compromises that make no one happy.
             </p>
           </motion.div>
@@ -154,7 +154,7 @@ export default function Landing() {
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-16">
             <span className="text-[#D96A53] text-sm font-medium uppercase tracking-[0.2em]">How It Works</span>
-            <h2 className="font-['Outfit'] text-3xl lg:text-4xl font-bold text-[#1C1E1D] mt-3 tracking-tight">Three steps to your perfect trip</h2>
+            <h2 className="font-['Cormorant_Garamond'] text-3xl lg:text-5xl font-medium text-[#2A3B32] mt-3 tracking-tight">Three steps to your perfect trip</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
@@ -184,7 +184,7 @@ export default function Landing() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <motion.div initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }}>
               <span className="text-[#D96A53] text-sm font-medium uppercase tracking-[0.2em]">Smart Matching</span>
-              <h2 className="font-['Outfit'] text-3xl lg:text-4xl font-bold text-[#1C1E1D] mt-3 tracking-tight leading-tight mb-6">
+              <h2 className="font-['Cormorant_Garamond'] text-3xl lg:text-5xl font-medium text-[#2A3B32] mt-3 tracking-tight leading-tight mb-6">
                 Find the best compromise, automatically
               </h2>
               <p className="text-[#5C605E] text-base leading-relaxed mb-8">
@@ -233,7 +233,7 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <span className="text-[#D96A53] text-sm font-medium uppercase tracking-[0.2em]">Trip Types</span>
-            <h2 className="font-['Outfit'] text-3xl lg:text-4xl font-medium text-white mt-3 tracking-tight">Every occasion, covered</h2>
+            <h2 className="font-['Cormorant_Garamond'] text-3xl lg:text-5xl font-medium text-white mt-3 tracking-tight">Every occasion, covered</h2>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {tripTypes.map((tt, i) => (
@@ -252,7 +252,7 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <span className="text-[#D96A53] text-sm font-medium uppercase tracking-[0.2em]">Popular Destinations</span>
-            <h2 className="font-['Outfit'] text-3xl lg:text-4xl font-medium text-[#1C1E1D] mt-3 tracking-tight">Where groups love to go</h2>
+            <h2 className="font-['Cormorant_Garamond'] text-3xl lg:text-5xl font-medium text-[#2A3B32] mt-3 tracking-tight">Where groups love to go</h2>
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
             {destinations.map((d, i) => (
@@ -275,7 +275,7 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <span className="text-[#D96A53] text-sm font-medium uppercase tracking-[0.2em]">Premium Features</span>
-            <h2 className="font-['Outfit'] text-3xl lg:text-4xl font-medium text-[#1C1E1D] mt-3 tracking-tight">Everything you need, in one place</h2>
+            <h2 className="font-['Cormorant_Garamond'] text-3xl lg:text-5xl font-medium text-[#2A3B32] mt-3 tracking-tight">Everything you need, in one place</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
@@ -319,10 +319,10 @@ export default function Landing() {
       {/* CTA */}
       <section className="py-24 px-6 bg-[#2C4234]">
         <div className="max-w-3xl mx-auto text-center">
-          <h2 className="font-['Outfit'] text-3xl lg:text-4xl font-medium text-white mb-6 tracking-tight">Ready to plan your next group trip?</h2>
+          <h2 className="font-['Cormorant_Garamond'] text-3xl lg:text-5xl font-medium text-white mb-6 tracking-tight">Ready to plan your next group trip?</h2>
           <p className="text-white/70 text-lg mb-8">Stop the endless WhatsApp debates. Let TripSync find the best compromise for everyone.</p>
           <Link to={user ? "/create-trip" : "/auth"}>
-            <Button className="bg-[#D96A53] hover:bg-[#C25944] text-white rounded-xl px-10 py-6 text-base" data-testid="cta-plan-trip-btn">
+            <Button className="bg-[#E07A5F] hover:bg-[#D26A4F] text-white rounded-full px-10 py-7 text-base font-['Outfit'] shadow-lg shadow-[#E07A5F]/20" data-testid="cta-plan-trip-btn">
               Start Planning <ArrowRight className="w-5 h-5 ml-2" />
             </Button>
           </Link>

@@ -52,6 +52,7 @@ export default function AvailabilityHeatmap() {
   const mostProbableRanges = data?.most_probable_ranges || [];
   const lockedDates = data?.locked_dates || null;
   const isOwner = data?.is_owner || false;
+  const autoLockSuggestion = data?.auto_lock_suggestion || null;
 
   const handleLockDates = async (start, end) => {
     setLocking(true);
@@ -197,6 +198,30 @@ export default function AvailabilityHeatmap() {
                   <Unlock className="w-4 h-4 mr-1" /> {locking ? 'Unlocking...' : 'Unlock dates'}
                 </Button>
               )}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Auto-suggestion Banner - All participants overlap */}
+        {autoLockSuggestion && !lockedDates && isOwner && (
+          <motion.div initial={{ opacity: 0, y: 10, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} className="mb-6" data-testid="auto-lock-suggestion">
+            <div className="bg-gradient-to-r from-emerald-500 via-green-500 to-teal-500 rounded-3xl p-6 text-white shadow-lg shadow-emerald-500/20">
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                    <Sparkles className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-['Outfit'] font-bold text-lg">Everyone agrees!</h3>
+                    <p className="text-white/90 text-sm">{autoLockSuggestion.message}</p>
+                    <p className="text-white/70 text-xs mt-0.5">{autoLockSuggestion.days} days &middot; All {totalWithPrefs} participants available</p>
+                  </div>
+                </div>
+                <Button onClick={() => handleLockDates(autoLockSuggestion.start, autoLockSuggestion.end)} disabled={locking}
+                  className="bg-white text-emerald-700 hover:bg-white/90 rounded-full px-6 py-5 font-['Outfit'] font-bold shadow-lg" data-testid="auto-lock-btn">
+                  <Lock className="w-4 h-4 mr-2" /> {locking ? 'Locking...' : 'Lock these dates now'}
+                </Button>
+              </div>
             </div>
           </motion.div>
         )}

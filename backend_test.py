@@ -443,81 +443,171 @@ class TripSyncAPITester:
         self.token = temp_token
         return success, response
 
+    def test_guest_check_existing(self):
+        """Test checking if guest already submitted (for edit capability)"""
+        if not hasattr(self, 'guest_token') or not self.guest_token:
+            return False, {}
+        
+        # Remove auth token for this test
+        temp_token = self.token
+        self.token = None
+        
+        success, response = self.run_test(
+            "Check Guest Existing Submission",
+            "GET",
+            f"trips/guest/{self.guest_token}/check/Test%20Guest%20User",
+            200
+        )
+        if success:
+            found = response.get('found', False)
+            date_ranges = response.get('date_ranges', [])
+            print(f"   Guest found: {found}")
+            if found:
+                print(f"   Existing date ranges: {len(date_ranges)}")
+        
+        # Restore auth token
+        self.token = temp_token
+        return success, response
+
+    def test_slot_prices(self):
+        """Test slot price comparison API"""
+        if not self.trip_id:
+            return False, {}
+        
+        success, response = self.run_test(
+            "Get Slot Prices",
+            "GET",
+            f"trips/{self.trip_id}/slot-prices",
+            200
+        )
+        if success:
+            slots = response.get('slots', [])
+            print(f"   Found {len(slots)} price slots")
+            for slot in slots[:3]:  # Show first 3
+                print(f"     - {slot.get('date_range')}: {slot.get('flight_price')}€ flight, {slot.get('hotel_price')}€ hotel")
+        
+        return success, response
+
+    def test_email_log(self):
+        """Test email log API (mock emails)"""
+        success, response = self.run_test(
+            "Get Email Log",
+            "GET",
+            "email-log",
+            200
+        )
+        if success:
+            emails = response.get('emails', [])
+            print(f"   Found {len(emails)} mock emails")
+            for email in emails[:3]:  # Show first 3
+                print(f"     - To: {email.get('to')}, Subject: {email.get('subject')}")
+        
+        return success, response
+
+    def test_availability_heatmap_with_auto_suggestion(self):
+        """Test availability heatmap with auto-suggestion field"""
+        if not self.trip_id:
+            return False, {}
+        
+        success, response = self.run_test(
+            "Get Availability Heatmap with Auto-suggestion",
+            "GET",
+            f"trips/{self.trip_id}/availability-heatmap",
+            200
+        )
+        if success:
+            auto_lock_suggestion = response.get('auto_lock_suggestion')
+            print(f"   Auto-lock suggestion: {'Yes' if auto_lock_suggestion else 'No'}")
+            if auto_lock_suggestion:
+                print(f"     Message: {auto_lock_suggestion.get('message')}")
+                print(f"     Date range: {auto_lock_suggestion.get('start')} to {auto_lock_suggestion.get('end')}")
+        
+        return success, response
+
 def main():
-    print("🚀 Starting TripSync Lock Dates & Guest Availability API Tests")
+    print("🚀 Starting TripSync New Features API Tests")
     print("=" * 60)
     
     # Setup
     tester = TripSyncAPITester()
     
-    # Test login with existing test user
+    # Test login with alice_range@test.com as specified in review request
     if not tester.test_login("alice_range@test.com", "Test123456"):
-        print("❌ Login failed, trying admin login")
+        print("❌ Login failed with alice_range@test.com, trying admin login")
         if not tester.test_login("admin@tripsync.com", "admin123"):
             print("❌ Admin login also failed, stopping tests")
             return 1
 
-    # Test get trips
-    success, trip_data = tester.test_get_trips()
-    if not success:
-        print("❌ Failed to get trips, stopping tests")
-        return 1
+    # Use the specific trip ID from review request
+    tester.trip_id = "69dd58b0c6fe98204ff8ea9b"
+    print(f"Using specified trip ID: {tester.trip_id}")
 
     # Test trip details
     success, trip_details = tester.test_get_trip_details()
     if not success:
         print("❌ Failed to get trip details")
 
-    # Submit preferences with date ranges first
-    success, prefs_data = tester.test_submit_preferences()
-    if not success:
-        print("❌ Failed to submit preferences")
+    # Test NEW FEATURES from review request:
 
-    # Test availability heatmap
-    success, heatmap_data = tester.test_availability_heatmap()
+    # 1. Test slot price comparison API
+    success, slot_prices = tester.test_slot_prices()
     if not success:
-        print("❌ Failed to get availability heatmap")
+        print("❌ Failed to get slot prices")
 
-    # Test lock dates feature
+    # 2. Test email log API (mock emails)
+    success, email_log = tester.test_email_log()
+    if not success:
+        print("❌ Failed to get email log")
+
+    # 3. Test availability heatmap with auto-suggestion
+    success, heatmap_data = tester.test_availability_heatmap_with_auto_suggestion()
+    if not success:
+        print("❌ Failed to get availability heatmap with auto-suggestion")
+
+    # 4. Test lock dates with mock email notification
     success, lock_data = tester.test_lock_dates()
     if not success:
         print("❌ Failed to lock dates")
 
-    # Test availability heatmap again to see locked dates
-    success, heatmap_locked = tester.test_availability_heatmap()
+    # Check if mock email was sent after locking dates
+    success, email_log_after_lock = tester.test_email_log()
     if success:
-        locked_dates = heatmap_locked.get('locked_dates')
-        if locked_dates:
-            print("✅ Locked dates visible in heatmap")
+        emails = email_log_after_lock.get('emails', [])
+        lock_emails = [e for e in emails if 'lock' in e.get('subject', '').lower() or 'date' in e.get('subject', '').lower()]
+        if lock_emails:
+            print("✅ Mock email notification sent after locking dates")
         else:
-            print("⚠️  Locked dates not visible in heatmap")
+            print("⚠️  No mock email found after locking dates")
 
-    # Test unlock dates
-    success, unlock_data = tester.test_unlock_dates()
-    if not success:
-        print("❌ Failed to unlock dates")
-
-    # Test guest share link creation
-    success, share_data = tester.test_create_guest_share_link()
-    if not success:
-        print("❌ Failed to create guest share link")
-
+    # 5. Test guest functionality with specific token from review request
+    tester.guest_token = "1FKCbgUkdiu9cqepJvEF_g"
+    
     # Test guest trip info (no auth)
     success, guest_info = tester.test_get_guest_trip_info()
     if not success:
         print("❌ Failed to get guest trip info")
+
+    # Test guest check for edit capability
+    success, guest_check = tester.test_guest_check_existing()
+    if not success:
+        print("❌ Failed to check guest existing submission")
 
     # Test guest availability submission (no auth)
     success, guest_submit = tester.test_submit_guest_availability()
     if not success:
         print("❌ Failed to submit guest availability")
 
-    # Test heatmap again to see guest data
-    success, heatmap_final = tester.test_availability_heatmap()
+    # Test heatmap again to see guest data and auto-suggestion
+    success, heatmap_final = tester.test_availability_heatmap_with_auto_suggestion()
     if success:
         participant_grid = heatmap_final.get('participant_grid', [])
         guest_count = sum(1 for p in participant_grid if 'guest' in p.get('name', '').lower())
         print(f"✅ Guest data in heatmap: {guest_count} guest participants")
+
+    # Test unlock dates
+    success, unlock_data = tester.test_unlock_dates()
+    if not success:
+        print("❌ Failed to unlock dates")
 
     # Test notifications
     success, notif_data = tester.test_notifications()

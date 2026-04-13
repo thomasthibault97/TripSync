@@ -171,6 +171,8 @@ export default function GuestAvailability() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [dateRanges, setDateRanges] = useState([]);
+  const [isEditing, setIsEditing] = useState(false);
+  const [checkingName, setCheckingName] = useState(false);
 
   useEffect(() => {
     api.get(`/trips/guest/${token}`)
@@ -178,6 +180,27 @@ export default function GuestAvailability() {
       .catch(() => toast.error('Invalid or expired link'))
       .finally(() => setLoading(false));
   }, [token]);
+
+  // Check if guest already submitted when name changes (debounced)
+  useEffect(() => {
+    if (!name.trim() || name.trim().length < 2) return;
+    const timer = setTimeout(async () => {
+      setCheckingName(true);
+      try {
+        const { data } = await api.get(`/trips/guest/${token}/check/${encodeURIComponent(name.trim())}`);
+        if (data.found) {
+          setDateRanges(data.date_ranges || []);
+          setEmail(data.email || '');
+          setIsEditing(true);
+          toast.info(`Welcome back ${name.trim()}! Your previous dates are loaded.`);
+        } else {
+          setIsEditing(false);
+        }
+      } catch {}
+      setCheckingName(false);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [name, token]);
 
   const handleSubmit = async () => {
     if (!name.trim()) { toast.error('Please enter your name'); return; }
@@ -306,8 +329,11 @@ export default function GuestAvailability() {
 
             <Button onClick={handleSubmit} disabled={submitting || !name.trim() || dateRanges.length === 0}
               className="w-full h-12 bg-[#2C4234] hover:bg-[#1F3025] text-white rounded-xl text-base font-medium" data-testid="guest-submit-btn">
-              {submitting ? 'Submitting...' : <><Send className="w-4 h-4 mr-2" /> Submit my dates</>}
+              {submitting ? 'Submitting...' : <><Send className="w-4 h-4 mr-2" /> {isEditing ? 'Update my dates' : 'Submit my dates'}</>}
             </Button>
+            {isEditing && (
+              <p className="text-center text-[10px] text-[#81B29A] font-medium mt-1">You previously submitted dates — they've been loaded above</p>
+            )}
           </div>
         </motion.div>
       </div>
