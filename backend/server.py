@@ -98,6 +98,10 @@ class TripCreate(BaseModel):
     end_date: Optional[str] = None
     flexible_dates: bool = True
 
+class DateRangeItem(BaseModel):
+    start: str
+    end: str
+
 class PreferencesInput(BaseModel):
     departure_city: str = ""
     return_city: str = ""
@@ -119,6 +123,7 @@ class PreferencesInput(BaseModel):
     departure_time_preference: str = "flexible"
     return_time_preference: str = "flexible"
     available_dates: List[str] = []
+    date_ranges: List[DateRangeItem] = []
 
 class VoteInput(BaseModel):
     destination_id: str
@@ -973,19 +978,34 @@ async def get_availability_heatmap(trip_id: str, user=Depends(get_current_user))
 
     # Collect every participant's available dates and date ranges
     participant_dates = {}  # user_name -> set of date strings
+    participant_ranges = {}  # user_name -> list of {start, end} range dicts
     all_dates_set = set()
 
     for p in prefs:
         name = p.get("user_name", "Unknown")
         dates = set()
-        # From flexible date picker
+        ranges = []
+        # From new date_ranges format (pairs of departure->return)
+        for dr in p.get("date_ranges", []):
+            try:
+                start = datetime.strptime(dr["start"], "%Y-%m-%d")
+                end = datetime.strptime(dr["end"], "%Y-%m-%d")
+                ranges.append({"start": dr["start"], "end": dr["end"]})
+                current = start
+                while current <= end:
+                    dates.add(current.strftime("%Y-%m-%d"))
+                    current += timedelta(days=1)
+            except Exception:
+                pass
+        # Backward compat: from old flexible date picker individual dates
         for d in p.get("available_dates", []):
             dates.add(d)
-        # From date range
-        if p.get("date_start") and p.get("date_end"):
+        # Backward compat: from old single date range
+        if not ranges and p.get("date_start") and p.get("date_end"):
             try:
                 start = datetime.strptime(p["date_start"], "%Y-%m-%d")
                 end = datetime.strptime(p["date_end"], "%Y-%m-%d")
+                ranges.append({"start": p["date_start"], "end": p["date_end"]})
                 current = start
                 while current <= end:
                     dates.add(current.strftime("%Y-%m-%d"))
@@ -993,6 +1013,7 @@ async def get_availability_heatmap(trip_id: str, user=Depends(get_current_user))
             except Exception:
                 pass
         participant_dates[name] = dates
+        participant_ranges[name] = ranges
         all_dates_set.update(dates)
 
     # If nobody submitted dates, generate next 3 months as "unknown"
@@ -1069,7 +1090,8 @@ async def get_availability_heatmap(trip_id: str, user=Depends(get_current_user))
     for name, dates in participant_dates.items():
         participant_grid.append({
             "name": name,
-            "dates": {d: True for d in dates}
+            "dates": {d: True for d in dates},
+            "ranges": participant_ranges.get(name, [])
         })
     # Also add participants who haven't submitted prefs
     for p in participants:
@@ -1114,6 +1136,52 @@ async def get_availability_heatmap(trip_id: str, user=Depends(get_current_user))
             bp["all_available_days"] = sum(1 for d in bp["dates"] if heatmap.get(d, {}).get("count", 0) == prefs_submitted)
         best_periods.sort(key=lambda x: (x["score"], x["days"]), reverse=True)
 
+    # Compute most probable travel ranges by finding overlapping ranges across users
+    # For each unique range submitted by any user, count how many other users also cover that range
+    most_probable_ranges = []
+    all_ranges_list = []
+    for name, ranges in participant_ranges.items():
+        for r in ranges:
+            all_ranges_list.append({"start": r["start"], "end": r["end"], "user": name})
+
+    if all_ranges_list and prefs_submitted > 0:
+        # For each range, count how many users are available for ALL days in that range
+        seen_ranges = set()
+        for r in all_ranges_list:
+            range_key = f"{r['start']}_{r['end']}"
+            if range_key in seen_ranges:
+                continue
+            seen_ranges.add(range_key)
+            try:
+                rstart = datetime.strptime(r["start"], "%Y-%m-%d")
+                rend = datetime.strptime(r["end"], "%Y-%m-%d")
+                range_days = []
+                cur = rstart
+                while cur <= rend:
+                    range_days.append(cur.strftime("%Y-%m-%d"))
+                    cur += timedelta(days=1)
+                # Count users who are available on ALL days of this range
+                full_overlap_users = []
+                partial_overlap_users = []
+                for uname, udates in participant_dates.items():
+                    days_covered = sum(1 for d in range_days if d in udates)
+                    if days_covered == len(range_days):
+                        full_overlap_users.append(uname)
+                    elif days_covered > 0:
+                        partial_overlap_users.append(uname)
+                most_probable_ranges.append({
+                    "start": r["start"],
+                    "end": r["end"],
+                    "days": len(range_days),
+                    "full_overlap_count": len(full_overlap_users),
+                    "full_overlap_users": full_overlap_users,
+                    "partial_overlap_users": partial_overlap_users,
+                    "score": round((len(full_overlap_users) / prefs_submitted) * 100) if prefs_submitted else 0
+                })
+            except Exception:
+                pass
+        most_probable_ranges.sort(key=lambda x: (x["full_overlap_count"], x["days"]), reverse=True)
+
     return {
         "heatmap": heatmap,
         "total_participants": total_participants,
@@ -1122,6 +1190,7 @@ async def get_availability_heatmap(trip_id: str, user=Depends(get_current_user))
         "participant_grid": participant_grid,
         "best_weekends": best_weekends[:8],
         "best_periods": best_periods[:6],
+        "most_probable_ranges": most_probable_ranges[:10],
         "date_range": {"start": sorted_dates[0] if sorted_dates else "", "end": sorted_dates[-1] if sorted_dates else ""}
     }
 

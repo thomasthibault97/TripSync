@@ -3,7 +3,7 @@ import sys
 from datetime import datetime
 
 class TripSyncAPITester:
-    def __init__(self, base_url="https://harmony-travel.preview.emergentagent.com"):
+    def __init__(self, base_url="https://sync-trips.preview.emergentagent.com"):
         self.base_url = base_url
         self.token = None
         self.tests_run = 0

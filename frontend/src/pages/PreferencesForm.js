@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Slider } from '@/components/ui/slider';
-import { Globe, ArrowLeft, ArrowRight, Save, MapPin, Plane, Train, Car, Clock, Thermometer, Bed, Footprints, AlertTriangle, Heart } from 'lucide-react';
+import { Globe, ArrowLeft, ArrowRight, Save, MapPin, Plane, Train, Car, Clock, Thermometer, Bed, Footprints, AlertTriangle, Heart, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 
@@ -28,11 +28,12 @@ const DEST_TYPES = [
   { id: 'romantic', label: 'Romantic' }, { id: 'shopping', label: 'Shopping' },
 ];
 
-// Flexible Date Finder Calendar Heatmap with Weather Awareness
-function FlexibleDatePicker({ selectedDates, onChange }) {
+// Date Range Picker — select departure→return pairs
+function DateRangePicker({ dateRanges, onChange }) {
   const today = new Date();
   const [monthOffset, setMonthOffset] = useState(0);
-  const [weatherData, setWeatherData] = useState({});
+  const [pendingStart, setPendingStart] = useState(null); // waiting for return date
+  const [hoveredDate, setHoveredDate] = useState(null);
 
   const monthDate = useMemo(() => {
     const d = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
@@ -40,66 +41,110 @@ function FlexibleDatePicker({ selectedDates, onChange }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monthOffset]);
 
-  const MONTH_KEYS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
-  const monthKey = MONTH_KEYS[monthDate.getMonth()];
-
-  // Fetch weather for popular destinations for this month
-  useEffect(() => {
-    const fetchWeather = async () => {
-      try {
-        const destinations = ["paris", "barcelona", "lisbon", "rome", "amsterdam"];
-        const results = {};
-        for (const dest of destinations) {
-          const { data } = await api.get(`/weather/${dest}/${monthKey}`);
-          results[dest] = data;
-        }
-        setWeatherData(results);
-      } catch {}
-    };
-    fetchWeather();
-  }, [monthKey]);
-
   const daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
   const firstDay = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1).getDay();
   const monthLabel = monthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
-  const toggleDate = (dateStr) => {
-    if (selectedDates.includes(dateStr)) {
-      onChange(selectedDates.filter(d => d !== dateStr));
-    } else {
-      onChange([...selectedDates, dateStr]);
-    }
-  };
-
-  const isSelected = (dateStr) => selectedDates.includes(dateStr);
   const isPast = (day) => {
     const d = new Date(monthDate.getFullYear(), monthDate.getMonth(), day);
     return d < new Date(today.getFullYear(), today.getMonth(), today.getDate());
   };
 
-  // Weekend highlight
   const isWeekend = (day) => {
     const d = new Date(monthDate.getFullYear(), monthDate.getMonth(), day);
     return d.getDay() === 0 || d.getDay() === 6;
   };
 
+  // Check if a date string is within any completed range
+  const getRangeInfo = (dateStr) => {
+    for (let i = 0; i < dateRanges.length; i++) {
+      const r = dateRanges[i];
+      if (dateStr >= r.start && dateStr <= r.end) {
+        return {
+          inRange: true,
+          rangeIndex: i,
+          isStart: dateStr === r.start,
+          isEnd: dateStr === r.end,
+          isSingle: r.start === r.end
+        };
+      }
+    }
+    return { inRange: false };
+  };
+
+  // Check if date is the pending start
+  const isPendingStart = (dateStr) => pendingStart === dateStr;
+
+  // Check if date is in the hover preview range
+  const isInPreview = (dateStr) => {
+    if (!pendingStart || !hoveredDate) return false;
+    const from = pendingStart < hoveredDate ? pendingStart : hoveredDate;
+    const to = pendingStart < hoveredDate ? hoveredDate : pendingStart;
+    return dateStr >= from && dateStr <= to;
+  };
+
+  const handleDateClick = (dateStr) => {
+    if (!pendingStart) {
+      // First click: set departure date
+      setPendingStart(dateStr);
+    } else {
+      // Second click: set return date and create range
+      const start = pendingStart < dateStr ? pendingStart : dateStr;
+      const end = pendingStart < dateStr ? dateStr : pendingStart;
+      onChange([...dateRanges, { start, end }]);
+      setPendingStart(null);
+      setHoveredDate(null);
+    }
+  };
+
+  const removeRange = (index) => {
+    onChange(dateRanges.filter((_, i) => i !== index));
+  };
+
+  const formatDateShort = (dateStr) => {
+    const d = new Date(dateStr + 'T12:00:00');
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  const daysBetween = (start, end) => {
+    const s = new Date(start);
+    const e = new Date(end);
+    return Math.round((e - s) / (86400000)) + 1;
+  };
+
+  // Color palette for ranges
+  const rangeColors = [
+    { bg: 'bg-[#2C4234]', text: 'text-white', light: 'bg-[#2C4234]/15', border: 'border-[#2C4234]', dot: 'bg-[#2C4234]' },
+    { bg: 'bg-[#D96A53]', text: 'text-white', light: 'bg-[#D96A53]/15', border: 'border-[#D96A53]', dot: 'bg-[#D96A53]' },
+    { bg: 'bg-indigo-600', text: 'text-white', light: 'bg-indigo-100', border: 'border-indigo-500', dot: 'bg-indigo-600' },
+    { bg: 'bg-amber-600', text: 'text-white', light: 'bg-amber-100', border: 'border-amber-500', dot: 'bg-amber-600' },
+    { bg: 'bg-purple-600', text: 'text-white', light: 'bg-purple-100', border: 'border-purple-500', dot: 'bg-purple-600' },
+  ];
+
   return (
-    <div className="bg-white rounded-xl border border-[#E5E4DE] p-4" data-testid="flexible-date-picker">
-      <div className="flex items-center justify-between mb-3">
-        <Label className="text-sm text-[#1C1E1D] font-medium">Tap your available dates</Label>
-        <span className="text-xs text-[#D96A53] font-medium">{selectedDates.length} selected</span>
+    <div className="bg-white rounded-xl border border-[#E5E4DE] p-4" data-testid="date-range-picker">
+      <div className="flex items-center justify-between mb-1">
+        <Label className="text-sm text-[#1C1E1D] font-medium">Select your travel dates</Label>
+        <span className="text-xs text-[#D96A53] font-medium">{dateRanges.length} trip{dateRanges.length !== 1 ? 's' : ''} added</span>
       </div>
+      <p className="text-[10px] text-[#5C605E] mb-3">
+        {pendingStart
+          ? `Departure: ${formatDateShort(pendingStart)} — now tap your return date`
+          : 'Tap a departure date, then tap a return date'}
+      </p>
+
+      {/* Month navigation */}
       <div className="flex items-center justify-between mb-3">
         <button onClick={() => setMonthOffset(p => Math.max(0, p - 1))} disabled={monthOffset === 0}
-          className="text-xs text-[#5C605E] hover:text-[#1C1E1D] disabled:opacity-30 px-2 py-1">
-          &larr; Prev
-        </button>
+          className="text-xs text-[#5C605E] hover:text-[#1C1E1D] disabled:opacity-30 px-2 py-1"
+          data-testid="range-prev-month">&larr; Prev</button>
         <span className="text-sm font-medium text-[#1C1E1D]">{monthLabel}</span>
         <button onClick={() => setMonthOffset(p => Math.min(5, p + 1))} disabled={monthOffset >= 5}
-          className="text-xs text-[#5C605E] hover:text-[#1C1E1D] disabled:opacity-30 px-2 py-1">
-          Next &rarr;
-        </button>
+          className="text-xs text-[#5C605E] hover:text-[#1C1E1D] disabled:opacity-30 px-2 py-1"
+          data-testid="range-next-month">Next &rarr;</button>
       </div>
+
+      {/* Calendar grid */}
       <div className="grid grid-cols-7 gap-1 text-center">
         {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => (
           <div key={d} className="text-[10px] text-[#5C605E] py-1 font-medium">{d}</div>
@@ -109,39 +154,84 @@ function FlexibleDatePicker({ selectedDates, onChange }) {
           const day = i + 1;
           const dateStr = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
           const past = isPast(day);
-          const sel = isSelected(dateStr);
           const wknd = isWeekend(day);
+          const info = getRangeInfo(dateStr);
+          const pending = isPendingStart(dateStr);
+          const preview = isInPreview(dateStr);
+          const colorSet = info.inRange ? rangeColors[info.rangeIndex % rangeColors.length] : null;
+
+          let cellClass = 'text-[#1C1E1D] hover:bg-[#2C4234]/10';
+          if (past) {
+            cellClass = 'text-[#E5E4DE] cursor-not-allowed';
+          } else if (info.inRange && (info.isStart || info.isEnd)) {
+            cellClass = `${colorSet.bg} ${colorSet.text} shadow-sm`;
+          } else if (info.inRange) {
+            cellClass = `${colorSet.light} ${colorSet.text === 'text-white' ? 'text-[#1C1E1D]' : colorSet.text}`;
+          } else if (pending) {
+            cellClass = 'bg-[#2C4234] text-white shadow-sm ring-2 ring-[#2C4234]/40 animate-pulse';
+          } else if (preview) {
+            cellClass = 'bg-[#2C4234]/20 text-[#1C1E1D]';
+          } else if (wknd) {
+            cellClass = 'bg-[#D96A53]/10 text-[#D96A53] hover:bg-[#D96A53]/20';
+          }
+
           return (
-            <button key={day} disabled={past} onClick={() => toggleDate(dateStr)}
-              className={`w-full aspect-square rounded-lg text-xs font-medium transition-all
-                ${past ? 'text-[#E5E4DE] cursor-not-allowed' :
-                  sel ? 'bg-[#2C4234] text-white shadow-sm' :
-                  wknd ? 'bg-[#D96A53]/10 text-[#D96A53] hover:bg-[#D96A53]/20' :
-                  'text-[#1C1E1D] hover:bg-[#2C4234]/10'}`}>
+            <button key={day} disabled={past}
+              onClick={() => handleDateClick(dateStr)}
+              onMouseEnter={() => { if (pendingStart) setHoveredDate(dateStr); }}
+              onMouseLeave={() => setHoveredDate(null)}
+              data-testid={`range-day-${dateStr}`}
+              className={`w-full aspect-square rounded-lg text-xs font-medium transition-all relative ${cellClass}`}>
               {day}
+              {info.isStart && !info.isSingle && (
+                <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 text-[7px] font-bold opacity-80">DEP</span>
+              )}
+              {info.isEnd && !info.isSingle && (
+                <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 text-[7px] font-bold opacity-80">RET</span>
+              )}
             </button>
           );
         })}
       </div>
+
+      {/* Legend */}
       <div className="flex items-center gap-4 mt-3 text-[10px] text-[#5C605E]">
-        <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-[#2C4234]" /> Available</div>
+        <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-[#2C4234]" /> Departure / Return</div>
+        <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-[#2C4234]/15" /> Trip days</div>
         <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-[#D96A53]/20" /> Weekend</div>
       </div>
-      {/* Weather summary for this month */}
-      {Object.keys(weatherData).length > 0 && (
-        <div className="mt-3 pt-3 border-t border-[#E5E4DE]">
-          <div className="text-[10px] text-[#5C605E] uppercase tracking-wider mb-2 font-medium">Weather this month</div>
-          <div className="grid grid-cols-5 gap-1">
-            {Object.entries(weatherData).map(([dest, w]) => (
-              <div key={dest} className="text-center p-1.5 bg-[#F7F6F2] rounded-lg">
-                <div className="text-[10px] font-medium text-[#1C1E1D] capitalize truncate">{dest}</div>
-                <div className={`text-[10px] mt-0.5 ${w.temp >= 20 ? 'text-amber-600' : w.temp >= 14 ? 'text-green-600' : 'text-blue-600'}`}>
-                  {w.temp}°C
+
+      {/* Cancel pending */}
+      {pendingStart && (
+        <button onClick={() => { setPendingStart(null); setHoveredDate(null); }}
+          className="mt-2 text-xs text-[#D96A53] hover:underline" data-testid="cancel-pending-btn">
+          Cancel selection
+        </button>
+      )}
+
+      {/* Selected ranges */}
+      {dateRanges.length > 0 && (
+        <div className="mt-4 pt-3 border-t border-[#E5E4DE] space-y-2" data-testid="selected-ranges-list">
+          <div className="text-[10px] text-[#5C605E] uppercase tracking-wider font-medium mb-1">Your travel options</div>
+          {dateRanges.map((r, i) => {
+            const color = rangeColors[i % rangeColors.length];
+            return (
+              <div key={i} className={`flex items-center justify-between p-2.5 rounded-lg border ${color.border} bg-white`}
+                data-testid={`range-item-${i}`}>
+                <div className="flex items-center gap-2">
+                  <div className={`w-2.5 h-2.5 rounded-full ${color.dot}`} />
+                  <span className="text-sm font-medium text-[#1C1E1D]">
+                    {formatDateShort(r.start)} &rarr; {formatDateShort(r.end)}
+                  </span>
+                  <span className="text-[10px] text-[#5C605E]">({daysBetween(r.start, r.end)} days)</span>
                 </div>
-                <div className="text-[8px] text-[#5C605E]">{w.sun}h sun</div>
+                <button onClick={() => removeRange(i)} className="text-[#D96A53] hover:text-red-700 p-1"
+                  data-testid={`remove-range-${i}`}>
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -162,7 +252,8 @@ export default function PreferencesForm() {
     hard_constraints: [], nice_to_haves: [],
     passport_constraint: 'none', long_distance_ok: true,
     departure_time_preference: 'flexible', return_time_preference: 'flexible',
-    available_dates: []
+    available_dates: [],
+    date_ranges: []
   });
   const [hardConstraintInput, setHardConstraintInput] = useState('');
   const [niceToHaveInput, setNiceToHaveInput] = useState('');
@@ -317,10 +408,10 @@ export default function PreferencesForm() {
             {/* Dates */}
             <div className="flex items-center gap-3 p-3 bg-white rounded-xl border border-[#E5E4DE]">
               <Switch checked={form.flexible_dates} onCheckedChange={v => update('flexible_dates', v)} />
-              <span className="text-sm text-[#1C1E1D]">My dates are flexible</span>
+              <span className="text-sm text-[#1C1E1D]">I have multiple possible travel dates</span>
             </div>
             {form.flexible_dates ? (
-              <FlexibleDatePicker selectedDates={form.available_dates || []} onChange={dates => update('available_dates', dates)} />
+              <DateRangePicker dateRanges={form.date_ranges || []} onChange={ranges => update('date_ranges', ranges)} />
             ) : (
               <div className="grid grid-cols-2 gap-4">
                 <div>
