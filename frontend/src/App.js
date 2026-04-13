@@ -22,6 +22,7 @@ import TripTemplates from "@/pages/TripTemplates";
 import DealFinder from "@/pages/DealFinder";
 import AvailabilityHeatmap from "@/pages/AvailabilityHeatmap";
 import GroupPolls from "@/pages/GroupPolls";
+import GuestAvailability from "@/pages/GuestAvailability";
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -48,6 +49,7 @@ function AppRouter() {
       <Route path="/" element={<Landing />} />
       <Route path="/auth" element={<Auth />} />
       <Route path="/join/:inviteCode" element={<JoinTrip />} />
+      <Route path="/guest/:token" element={<GuestAvailability />} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/create-trip" element={<ProtectedRoute><CreateTrip /></ProtectedRoute>} />
       <Route path="/trip/:tripId" element={<ProtectedRoute><TripWorkspace /></ProtectedRoute>} />

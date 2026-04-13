@@ -245,17 +245,217 @@ class TripSyncAPITester:
         
         return success, response
 
+    def test_submit_preferences(self):
+        """Submit preferences with date ranges for testing lock dates feature"""
+        if not self.trip_id:
+            return False, {}
+        
+        from datetime import datetime, timedelta
+        today = datetime.now()
+        start_date = (today + timedelta(days=30)).strftime("%Y-%m-%d")
+        end_date = (today + timedelta(days=35)).strftime("%Y-%m-%d")
+        
+        preferences_data = {
+            "departure_city": "London",
+            "return_city": "London",
+            "same_return_city": True,
+            "date_start": start_date,
+            "date_end": end_date,
+            "flexible_dates": True,
+            "duration_days": 5,
+            "max_budget": 800,
+            "transport_types": ["plane"],
+            "destination_types": ["city", "culture"],
+            "weather_preference": "warm",
+            "accommodation_type": "hotel",
+            "travel_pace": "moderate",
+            "hard_constraints": [],
+            "nice_to_haves": ["good_food"],
+            "passport_constraint": "none",
+            "long_distance_ok": True,
+            "departure_time_preference": "flexible",
+            "return_time_preference": "flexible",
+            "available_dates": [],
+            "date_ranges": [{"start": start_date, "end": end_date}]
+        }
+        
+        success, response = self.run_test(
+            "Submit Preferences with Date Ranges",
+            "POST",
+            f"trips/{self.trip_id}/preferences",
+            200,
+            data=preferences_data
+        )
+        if success:
+            print(f"   Preferences submitted successfully")
+        
+        return success, response
+
+    def test_availability_heatmap(self):
+        """Test availability heatmap endpoint"""
+        if not self.trip_id:
+            return False, {}
+        
+        success, response = self.run_test(
+            "Get Availability Heatmap",
+            "GET",
+            f"trips/{self.trip_id}/availability-heatmap",
+            200
+        )
+        if success:
+            heatmap = response.get('heatmap', {})
+            locked_dates = response.get('locked_dates')
+            is_owner = response.get('is_owner', False)
+            guest_share_token = response.get('guest_share_token', '')
+            
+            print(f"   Heatmap dates: {len(heatmap)}")
+            print(f"   Is owner: {is_owner}")
+            print(f"   Locked dates: {locked_dates}")
+            print(f"   Guest share token: {'Yes' if guest_share_token else 'No'}")
+            
+            # Store for later tests
+            self.is_owner = is_owner
+            self.guest_share_token = guest_share_token
+        
+        return success, response
+
+    def test_lock_dates(self):
+        """Test locking dates (owner only)"""
+        if not self.trip_id:
+            return False, {}
+        
+        from datetime import datetime, timedelta
+        today = datetime.now()
+        start_date = (today + timedelta(days=30)).strftime("%Y-%m-%d")
+        end_date = (today + timedelta(days=35)).strftime("%Y-%m-%d")
+        
+        lock_data = {
+            "start": start_date,
+            "end": end_date
+        }
+        
+        success, response = self.run_test(
+            "Lock Dates",
+            "POST",
+            f"trips/{self.trip_id}/lock-dates",
+            200,
+            data=lock_data
+        )
+        if success:
+            locked_dates = response.get('locked_dates', {})
+            print(f"   Dates locked: {locked_dates.get('start')} to {locked_dates.get('end')}")
+            print(f"   Locked by: {locked_dates.get('locked_by')}")
+        
+        return success, response
+
+    def test_unlock_dates(self):
+        """Test unlocking dates (owner only)"""
+        if not self.trip_id:
+            return False, {}
+        
+        success, response = self.run_test(
+            "Unlock Dates",
+            "POST",
+            f"trips/{self.trip_id}/unlock-dates",
+            200
+        )
+        if success:
+            print(f"   Dates unlocked successfully")
+        
+        return success, response
+
+    def test_create_guest_share_link(self):
+        """Test creating guest share link"""
+        if not self.trip_id:
+            return False, {}
+        
+        success, response = self.run_test(
+            "Create Guest Share Link",
+            "POST",
+            f"trips/{self.trip_id}/guest-share-link",
+            200
+        )
+        if success:
+            token = response.get('token')
+            trip_name = response.get('trip_name')
+            print(f"   Share token created: {token}")
+            print(f"   Trip name: {trip_name}")
+            self.guest_token = token
+        
+        return success, response
+
+    def test_get_guest_trip_info(self):
+        """Test getting trip info via guest token (no auth)"""
+        if not hasattr(self, 'guest_token') or not self.guest_token:
+            return False, {}
+        
+        # Remove auth token for this test
+        temp_token = self.token
+        self.token = None
+        
+        success, response = self.run_test(
+            "Get Guest Trip Info",
+            "GET",
+            f"trips/guest/{self.guest_token}",
+            200
+        )
+        if success:
+            print(f"   Trip name: {response.get('name')}")
+            print(f"   Owner: {response.get('owner_name')}")
+            print(f"   Participants: {response.get('participant_count')}")
+            print(f"   Existing guest submissions: {len(response.get('guest_submissions', []))}")
+        
+        # Restore auth token
+        self.token = temp_token
+        return success, response
+
+    def test_submit_guest_availability(self):
+        """Test submitting guest availability (no auth)"""
+        if not hasattr(self, 'guest_token') or not self.guest_token:
+            return False, {}
+        
+        from datetime import datetime, timedelta
+        today = datetime.now()
+        start_date = (today + timedelta(days=25)).strftime("%Y-%m-%d")
+        end_date = (today + timedelta(days=30)).strftime("%Y-%m-%d")
+        
+        guest_data = {
+            "name": "Test Guest User",
+            "email": "guest@example.com",
+            "date_ranges": [{"start": start_date, "end": end_date}]
+        }
+        
+        # Remove auth token for this test
+        temp_token = self.token
+        self.token = None
+        
+        success, response = self.run_test(
+            "Submit Guest Availability",
+            "POST",
+            f"trips/guest/{self.guest_token}/submit",
+            200,
+            data=guest_data
+        )
+        if success:
+            print(f"   Guest availability submitted successfully")
+        
+        # Restore auth token
+        self.token = temp_token
+        return success, response
+
 def main():
-    print("🚀 Starting TripSync Group Polling API Tests")
+    print("🚀 Starting TripSync Lock Dates & Guest Availability API Tests")
     print("=" * 60)
     
     # Setup
     tester = TripSyncAPITester()
     
-    # Test login
-    if not tester.test_login("admin@tripsync.com", "admin123"):
-        print("❌ Login failed, stopping tests")
-        return 1
+    # Test login with existing test user
+    if not tester.test_login("alice_range@test.com", "Test123456"):
+        print("❌ Login failed, trying admin login")
+        if not tester.test_login("admin@tripsync.com", "admin123"):
+            print("❌ Admin login also failed, stopping tests")
+            return 1
 
     # Test get trips
     success, trip_data = tester.test_get_trips()
@@ -268,37 +468,61 @@ def main():
     if not success:
         print("❌ Failed to get trip details")
 
-    # Test existing polls
-    success, polls_data = tester.test_get_polls()
+    # Submit preferences with date ranges first
+    success, prefs_data = tester.test_submit_preferences()
     if not success:
-        print("❌ Failed to get polls")
+        print("❌ Failed to submit preferences")
 
-    # Test creating a new poll
-    success, poll_id = tester.test_create_poll()
+    # Test availability heatmap
+    success, heatmap_data = tester.test_availability_heatmap()
     if not success:
-        print("❌ Failed to create poll")
-        poll_id = None
+        print("❌ Failed to get availability heatmap")
 
-    # Test voting on poll (if we created one)
-    if poll_id:
-        success, vote_data = tester.test_vote_on_poll(poll_id)
-        if not success:
-            print("❌ Failed to vote on poll")
+    # Test lock dates feature
+    success, lock_data = tester.test_lock_dates()
+    if not success:
+        print("❌ Failed to lock dates")
 
-        # Test closing poll
-        success, close_data = tester.test_close_poll(poll_id)
-        if not success:
-            print("❌ Failed to close poll")
+    # Test availability heatmap again to see locked dates
+    success, heatmap_locked = tester.test_availability_heatmap()
+    if success:
+        locked_dates = heatmap_locked.get('locked_dates')
+        if locked_dates:
+            print("✅ Locked dates visible in heatmap")
+        else:
+            print("⚠️  Locked dates not visible in heatmap")
+
+    # Test unlock dates
+    success, unlock_data = tester.test_unlock_dates()
+    if not success:
+        print("❌ Failed to unlock dates")
+
+    # Test guest share link creation
+    success, share_data = tester.test_create_guest_share_link()
+    if not success:
+        print("❌ Failed to create guest share link")
+
+    # Test guest trip info (no auth)
+    success, guest_info = tester.test_get_guest_trip_info()
+    if not success:
+        print("❌ Failed to get guest trip info")
+
+    # Test guest availability submission (no auth)
+    success, guest_submit = tester.test_submit_guest_availability()
+    if not success:
+        print("❌ Failed to submit guest availability")
+
+    # Test heatmap again to see guest data
+    success, heatmap_final = tester.test_availability_heatmap()
+    if success:
+        participant_grid = heatmap_final.get('participant_grid', [])
+        guest_count = sum(1 for p in participant_grid if 'guest' in p.get('name', '').lower())
+        print(f"✅ Guest data in heatmap: {guest_count} guest participants")
 
     # Test notifications
     success, notif_data = tester.test_notifications()
     if not success:
         print("❌ Failed to get notifications")
-
-    # Test unread count
-    success, unread_data = tester.test_unread_count()
-    if not success:
-        print("❌ Failed to get unread count")
 
     # Print results
     print("\n" + "=" * 60)

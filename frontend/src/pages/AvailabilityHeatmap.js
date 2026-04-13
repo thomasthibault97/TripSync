@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { Globe, ArrowLeft, Users, Calendar, ChevronLeft, ChevronRight, Award, Check, X, Crown, Sparkles, Plane } from 'lucide-react';
+import { Globe, ArrowLeft, Users, Calendar, ChevronLeft, ChevronRight, Award, Check, X, Crown, Sparkles, Plane, Lock, Unlock, Share2, Copy, Link2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 
@@ -16,13 +16,24 @@ export default function AvailabilityHeatmap() {
   const [monthOffset, setMonthOffset] = useState(0);
   const [hoveredDate, setHoveredDate] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const [locking, setLocking] = useState(false);
+  const [shareLink, setShareLink] = useState('');
+  const [shareCopied, setShareCopied] = useState(false);
+  const [generatingLink, setGeneratingLink] = useState(false);
 
-  useEffect(() => {
+  const fetchData = () => {
     api.get(`/trips/${tripId}/availability-heatmap`)
-      .then(r => setData(r.data))
+      .then(r => {
+        setData(r.data);
+        if (r.data.guest_share_token) {
+          setShareLink(`${window.location.origin}/guest/${r.data.guest_share_token}`);
+        }
+      })
       .catch(() => toast.error('Failed to load availability'))
       .finally(() => setLoading(false));
-  }, [tripId]);
+  };
+
+  useEffect(() => { fetchData(); }, [tripId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const today = new Date();
   const currentMonth = useMemo(() => {
@@ -39,6 +50,58 @@ export default function AvailabilityHeatmap() {
   const participantGrid = data?.participant_grid || [];
   const bestPeriods = data?.best_periods || [];
   const mostProbableRanges = data?.most_probable_ranges || [];
+  const lockedDates = data?.locked_dates || null;
+  const isOwner = data?.is_owner || false;
+
+  const handleLockDates = async (start, end) => {
+    setLocking(true);
+    try {
+      await api.post(`/trips/${tripId}/lock-dates`, { start, end });
+      toast.success('Dates locked! All participants have been notified.');
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to lock dates');
+    } finally {
+      setLocking(false);
+    }
+  };
+
+  const handleUnlockDates = async () => {
+    setLocking(true);
+    try {
+      await api.post(`/trips/${tripId}/unlock-dates`);
+      toast.success('Dates unlocked.');
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to unlock dates');
+    } finally {
+      setLocking(false);
+    }
+  };
+
+  const handleGenerateShareLink = async () => {
+    setGeneratingLink(true);
+    try {
+      const { data: result } = await api.post(`/trips/${tripId}/guest-share-link`);
+      const link = `${window.location.origin}/guest/${result.token}`;
+      setShareLink(link);
+      navigator.clipboard.writeText(link);
+      setShareCopied(true);
+      toast.success('Share link created and copied!');
+      setTimeout(() => setShareCopied(false), 3000);
+    } catch (err) {
+      toast.error('Failed to generate link');
+    } finally {
+      setGeneratingLink(false);
+    }
+  };
+
+  const copyShareLink = () => {
+    navigator.clipboard.writeText(shareLink);
+    setShareCopied(true);
+    toast.success('Link copied!');
+    setTimeout(() => setShareCopied(false), 2000);
+  };
 
   // Get dates for current month that have data
   const monthDates = useMemo(() => {
@@ -110,6 +173,64 @@ export default function AvailabilityHeatmap() {
           <p className="text-sm text-[#D96A53] font-medium mb-8">
             {data?.prefs_submitted || 0} of {data?.total_participants || 0} participants submitted dates
           </p>
+        </motion.div>
+
+        {/* Locked Dates Banner */}
+        {lockedDates && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-6" data-testid="locked-dates-banner">
+            <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-5 flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center">
+                  <Lock className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-['Outfit'] font-bold text-emerald-800 text-base">Dates Locked In!</h3>
+                  <p className="text-sm text-emerald-700">
+                    {new Date(lockedDates.start + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric' })} &rarr; {new Date(lockedDates.end + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric' })}
+                  </p>
+                  <p className="text-[10px] text-emerald-600 mt-0.5">Locked by {lockedDates.locked_by}</p>
+                </div>
+              </div>
+              {isOwner && (
+                <Button onClick={handleUnlockDates} disabled={locking} variant="outline"
+                  className="border-emerald-300 text-emerald-700 hover:bg-emerald-100 rounded-xl" data-testid="unlock-dates-btn">
+                  <Unlock className="w-4 h-4 mr-1" /> {locking ? 'Unlocking...' : 'Unlock dates'}
+                </Button>
+              )}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Share Availability Link */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-6" data-testid="share-link-section">
+          <div className="bg-white rounded-2xl border border-[#E5E4DE] p-5">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-[#D96A53]/10 flex items-center justify-center">
+                  <Share2 className="w-4 h-4 text-[#D96A53]" />
+                </div>
+                <div>
+                  <h3 className="font-['Outfit'] font-bold text-[#1C1E1D] text-sm">Share with non-members</h3>
+                  <p className="text-[10px] text-[#5C605E]">Let friends share their dates without creating an account</p>
+                </div>
+              </div>
+              {shareLink ? (
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <div className="flex-1 sm:flex-initial bg-[#F7F6F2] rounded-lg px-3 py-2 text-xs text-[#5C605E] truncate border border-[#E5E4DE] max-w-[300px]">
+                    <Link2 className="w-3 h-3 inline mr-1" />{shareLink}
+                  </div>
+                  <Button onClick={copyShareLink} size="sm" className="bg-[#2C4234] hover:bg-[#1F3025] text-white rounded-lg px-3" data-testid="copy-share-link-btn">
+                    {shareCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  </Button>
+                </div>
+              ) : (
+                <Button onClick={handleGenerateShareLink} disabled={generatingLink} size="sm"
+                  className="bg-[#D96A53] hover:bg-[#C25944] text-white rounded-xl" data-testid="generate-share-link-btn">
+                  <Share2 className="w-3.5 h-3.5 mr-1" /> {generatingLink ? 'Creating...' : 'Create share link'}
+                </Button>
+              )}
+            </div>
+          </div>
         </motion.div>
 
         {/* Best Periods - Doodle highlight */}
@@ -405,6 +526,14 @@ export default function AvailabilityHeatmap() {
                           <div className="mt-1 text-[9px] text-amber-600">
                             Partial: {r.partial_overlap_users.join(', ')}
                           </div>
+                        )}
+                        {/* Lock button - owner only, when not already locked */}
+                        {isOwner && !lockedDates && (
+                          <button onClick={() => handleLockDates(r.start, r.end)} disabled={locking}
+                            className="mt-2.5 w-full flex items-center justify-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 rounded-lg py-1.5 transition-colors"
+                            data-testid={`lock-range-${i}`}>
+                            <Lock className="w-3 h-3" /> {locking ? 'Locking...' : 'Lock these dates'}
+                          </button>
                         )}
                       </motion.div>
                     );

@@ -1016,16 +1016,39 @@ async def get_availability_heatmap(trip_id: str, user=Depends(get_current_user))
         participant_ranges[name] = ranges
         all_dates_set.update(dates)
 
+    # Build heatmap: for each date, count how many participants are available
+    heatmap = {}
+    prefs_submitted = len(prefs)
+
+    # Include guest availability submissions
+    guest_submissions = await db.guest_availability.find({"trip_id": trip_id}, {"_id": 0}).to_list(100)
+    for g in guest_submissions:
+        name = f"{g.get('name', 'Guest')} (guest)"
+        dates = set()
+        ranges = []
+        for dr in g.get("date_ranges", []):
+            try:
+                start = datetime.strptime(dr["start"], "%Y-%m-%d")
+                end = datetime.strptime(dr["end"], "%Y-%m-%d")
+                ranges.append({"start": dr["start"], "end": dr["end"]})
+                current = start
+                while current <= end:
+                    dates.add(current.strftime("%Y-%m-%d"))
+                    current += timedelta(days=1)
+            except Exception:
+                pass
+        if dates:
+            participant_dates[name] = dates
+            participant_ranges[name] = ranges
+            all_dates_set.update(dates)
+            prefs_submitted += 1  # count guests toward availability
+
     # If nobody submitted dates, generate next 3 months as "unknown"
     if not all_dates_set:
         today = datetime.now(timezone.utc)
         for i in range(90):
             d = today + timedelta(days=i)
             all_dates_set.add(d.strftime("%Y-%m-%d"))
-
-    # Build heatmap: for each date, count how many participants are available
-    heatmap = {}
-    prefs_submitted = len(prefs)
     for date_str in sorted(all_dates_set):
         count = 0
         available_names = []
@@ -1191,8 +1214,137 @@ async def get_availability_heatmap(trip_id: str, user=Depends(get_current_user))
         "best_weekends": best_weekends[:8],
         "best_periods": best_periods[:6],
         "most_probable_ranges": most_probable_ranges[:10],
+        "locked_dates": trip.get("locked_dates"),
+        "is_owner": trip.get("owner_id") == user["_id"],
+        "guest_share_token": trip.get("guest_share_token", ""),
         "date_range": {"start": sorted_dates[0] if sorted_dates else "", "end": sorted_dates[-1] if sorted_dates else ""}
     }
+
+# ---- LOCK IN DATES ----
+class LockDatesInput(BaseModel):
+    start: str
+    end: str
+
+@api_router.post("/trips/{trip_id}/lock-dates")
+async def lock_dates(trip_id: str, input: LockDatesInput, user=Depends(get_current_user)):
+    trip = await db.trips.find_one({"_id": ObjectId(trip_id)})
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found")
+    if trip.get("owner_id") != user["_id"]:
+        raise HTTPException(status_code=403, detail="Only the trip owner can lock dates")
+    locked_dates = {
+        "start": input.start,
+        "end": input.end,
+        "locked_by": user.get("name", ""),
+        "locked_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.trips.update_one(
+        {"_id": ObjectId(trip_id)},
+        {"$set": {"locked_dates": locked_dates, "start_date": input.start, "end_date": input.end, "status": "dates_locked"}}
+    )
+    await notify_trip(trip_id, "dates_locked", {"start": input.start, "end": input.end, "user_name": user.get("name", "")})
+    # Notify all participants
+    for p in trip.get("participants", []):
+        if p.get("user_id") != user["_id"]:
+            await create_notification(
+                p["user_id"], "Dates locked!",
+                f"{user.get('name','')} locked the trip dates: {input.start} to {input.end}",
+                trip_id, "dates"
+            )
+    return {"message": "Dates locked", "locked_dates": locked_dates}
+
+@api_router.post("/trips/{trip_id}/unlock-dates")
+async def unlock_dates(trip_id: str, user=Depends(get_current_user)):
+    trip = await db.trips.find_one({"_id": ObjectId(trip_id)})
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found")
+    if trip.get("owner_id") != user["_id"]:
+        raise HTTPException(status_code=403, detail="Only the trip owner can unlock dates")
+    await db.trips.update_one(
+        {"_id": ObjectId(trip_id)},
+        {"$unset": {"locked_dates": ""}, "$set": {"status": "planning"}}
+    )
+    await notify_trip(trip_id, "dates_unlocked", {"user_name": user.get("name", "")})
+    return {"message": "Dates unlocked"}
+
+@api_router.get("/trips/{trip_id}/locked-dates")
+async def get_locked_dates(trip_id: str, user=Depends(get_current_user)):
+    trip = await db.trips.find_one({"_id": ObjectId(trip_id)}, {"locked_dates": 1, "owner_id": 1})
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found")
+    return {
+        "locked_dates": trip.get("locked_dates"),
+        "is_owner": trip.get("owner_id") == user["_id"]
+    }
+
+# ---- GUEST AVAILABILITY (share link, no auth) ----
+class GuestAvailabilityInput(BaseModel):
+    name: str
+    email: Optional[str] = None
+    date_ranges: List[DateRangeItem] = []
+
+@api_router.post("/trips/{trip_id}/guest-share-link")
+async def create_guest_share_link(trip_id: str, user=Depends(get_current_user)):
+    trip = await db.trips.find_one({"_id": ObjectId(trip_id)})
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found")
+    # Check if link already exists
+    existing = trip.get("guest_share_token")
+    if existing:
+        return {"token": existing, "trip_name": trip.get("name", "")}
+    token = secrets.token_urlsafe(16)
+    await db.trips.update_one({"_id": ObjectId(trip_id)}, {"$set": {"guest_share_token": token}})
+    return {"token": token, "trip_name": trip.get("name", "")}
+
+@api_router.get("/trips/guest/{token}")
+async def get_guest_trip_info(token: str):
+    trip = await db.trips.find_one({"guest_share_token": token}, {"_id": 1, "name": 1, "trip_type": 1, "owner_name": 1, "participants": 1, "group_size": 1, "locked_dates": 1})
+    if not trip:
+        raise HTTPException(status_code=404, detail="Invalid share link")
+    trip_id = str(trip["_id"])
+    # Get existing guest submissions
+    guests = await db.guest_availability.find({"trip_id": trip_id}, {"_id": 0}).to_list(100)
+    return {
+        "id": trip_id,
+        "name": trip.get("name", ""),
+        "trip_type": trip.get("trip_type", ""),
+        "owner_name": trip.get("owner_name", ""),
+        "participant_count": len(trip.get("participants", [])),
+        "group_size": trip.get("group_size", 4),
+        "locked_dates": trip.get("locked_dates"),
+        "guest_submissions": [{"name": g.get("name", ""), "date_ranges": g.get("date_ranges", [])} for g in guests]
+    }
+
+@api_router.post("/trips/guest/{token}/submit")
+async def submit_guest_availability(token: str, input: GuestAvailabilityInput):
+    trip = await db.trips.find_one({"guest_share_token": token})
+    if not trip:
+        raise HTTPException(status_code=404, detail="Invalid share link")
+    if not input.name.strip():
+        raise HTTPException(status_code=400, detail="Name is required")
+    trip_id = str(trip["_id"])
+    guest_doc = {
+        "trip_id": trip_id,
+        "name": input.name.strip(),
+        "email": input.email or "",
+        "date_ranges": [r.model_dump() for r in input.date_ranges],
+        "submitted_at": datetime.now(timezone.utc).isoformat(),
+        "is_guest": True
+    }
+    # Upsert by name+trip_id
+    await db.guest_availability.update_one(
+        {"trip_id": trip_id, "name": input.name.strip()},
+        {"$set": guest_doc}, upsert=True
+    )
+    await notify_trip(trip_id, "guest_availability", {"guest_name": input.name.strip()})
+    # Notify trip owner
+    if trip.get("owner_id"):
+        await create_notification(
+            trip["owner_id"], "Guest submitted dates!",
+            f"{input.name.strip()} shared their travel dates via guest link",
+            trip_id, "guest"
+        )
+    return {"message": "Availability submitted! The trip organizer will see your dates."}
 
 # ---- GROUP POLLING ----
 class PollCreateInput(BaseModel):
