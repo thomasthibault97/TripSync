@@ -1,42 +1,41 @@
 # TripSync - AI-Powered All-Inclusive Group Travel Platform
 
-## Original Problem Statement
-Pull TripSync from GitHub + enhance availability features:
-1. Date range picker (departure→return pairs) instead of individual date clicks
-2. Lock in Dates — owner locks final dates, can unlock, notifies all participants  
-3. Share Availability Link — guests submit dates via shareable link, no account needed
-
 ## Architecture
 - Frontend: React 19 + Tailwind CSS + Shadcn UI + Framer Motion + PWA
 - Backend: FastAPI + WebSocket on port 8001
-- Database: MongoDB (motor async) — collections: trips, preferences, guest_availability, notifications
+- Database: MongoDB (motor async) — collections: trips, preferences, guest_availability, notifications, votes, destinations
 - AI: OpenAI GPT-5.2 via Emergent LLM Key
-- Auth: JWT + Google OAuth (Emergent-managed)
+- Auth: JWT + Google OAuth
 - Payments: Stripe
 
-## Implemented (Phases 1-7 from GitHub + Session Work)
+## All Implemented Features
 
-### From GitHub (Phases 1-7)
-Phases 1-7: Full MVP with auth, destinations, matching, voting, itinerary, Google OAuth, WebSocket, Stripe, PWA, Smart Weekend Finder, Weather, Trip Templates, AI Chatbot, Deal Finder, Calendar Export, Dashboard redesign, Group Availability Heatmap, Group Polling
+### Core (Phases 1-7 from GitHub)
+Full MVP with auth, 10 destinations, matching, voting, itinerary, Google OAuth, WebSocket, Stripe, PWA, Smart Weekend Finder, Weather, Trip Templates, AI Chatbot, Deal Finder, Calendar Export, Group Availability Heatmap, Group Polling
 
-### Session Work (Jan 13, 2026)
-1. **Date Range Picker** — Departure→Return pair selection, multiple ranges, color-coded calendar with DEP/RET labels
-2. **Lock in Dates** — Owner-only lock/unlock, green banner, WebSocket + notification broadcasts
-3. **Share Availability Link** — Guest page at `/guest/:token`, name + optional email + date ranges, no auth required
-4. **Heatmap Integration** — Guest data merged into heatmap, most probable ranges sidebar, participant ranges display
+### Session Work
+1. **Date Range Picker** — Departure→Return pair selection, multiple ranges, color-coded DEP/RET labels
+2. **Lock in Dates** — Owner-only lock/unlock, green banner, WebSocket + notifications
+3. **Share Availability Link** — Guest page `/guest/:token`, no auth, name + optional email + ranges
+4. **Mock Email Service** — Logs emails in-memory, sends to guests when dates locked
+5. **Guest Edit on Revisit** — Auto-detects returning guest by name, pre-fills date ranges + email
+6. **Auto Lock Suggestion** — Detects when ALL participants overlap, prompts owner with green banner
+7. **Slot Price Comparison API** — Simulated flight+hotel prices per time slot across destinations
+8. **Flight Coordination API** — Synchronized arrival suggestions for multi-city groups
+9. **UI/UX Overhaul** — Cormorant Garamond headings, editorial luxury design, glassmorphism, aerial hero
 
-## API Endpoints Added
-- POST /api/trips/{trip_id}/lock-dates
-- POST /api/trips/{trip_id}/unlock-dates  
-- GET /api/trips/{trip_id}/locked-dates
-- POST /api/trips/{trip_id}/guest-share-link
-- GET /api/trips/guest/{token}
+## API Endpoints
+- POST /api/trips/{id}/lock-dates, /unlock-dates, /guest-share-link
+- GET /api/trips/{id}/locked-dates, /slot-prices, /flight-coordination
+- GET /api/trips/guest/{token}, /guest/{token}/check/{name}
 - POST /api/trips/guest/{token}/submit
+- GET /api/email-log
 
-## Pages: 24 (added GuestAvailability)
+## Pages: 25 (added GuestAvailability + SlotPrices coming)
 
 ## Backlog
-- P1: Email notifications to guests when dates locked
-- P1: Guest edit submissions on re-visit
-- P2: Auto-suggest lock when all participants overlap
-- P2: Calendar sync integration
+- P0: Frontend UI for Slot Price Comparison + Flight Coordination pages
+- P1: Continue UI overhaul on Dashboard, TripWorkspace, Recommendations
+- P1: Accommodation & restaurant deep links in Destination Detail
+- P2: Trip Budget Tracker
+- P2: Real email integration (SendGrid/Resend)
