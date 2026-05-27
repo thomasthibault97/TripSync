@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import api from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { Globe, Plus, Users, Calendar, MapPin, ArrowRight, LogOut, Copy, Check, Settings, LayoutTemplate, Plane, CheckCircle, ChevronRight, Clock } from 'lucide-react';
+import { Globe, Plus, Users, Calendar, MapPin, ArrowRight, LogOut, Copy, Check, Settings, LayoutTemplate, Plane, CheckCircle, ChevronRight, Clock, Sparkles } from 'lucide-react';
 import NotificationCenter from '@/components/NotificationCenter';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
@@ -84,10 +84,15 @@ export default function Dashboard() {
       <div className="max-w-7xl mx-auto px-6 py-10" data-testid="dashboard-page">
         {/* Welcome Header */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-10">
-          <h1 className="font-['Outfit'] text-3xl lg:text-4xl font-bold text-[#1C1E1D] tracking-tight">
-            Welcome back, {user?.name?.split(' ')[0] || 'Traveler'}!
+          <h1 className="font-['Cormorant_Garamond'] text-3xl lg:text-4xl font-medium text-[#1C1E1D] tracking-tight">
+            Welcome back, {user?.name?.split(' ')[0] || 'Traveler'}
           </h1>
-          <p className="text-[#5C605E] mt-1.5">Ready to plan your next adventure?</p>
+          <div className="flex items-center gap-3 mt-2">
+            <p className="text-[#5C605E] font-['Outfit']">Ready to plan your next adventure?</p>
+            <Link to="/pricing" className="inline-flex items-center gap-1 text-xs font-['Outfit'] font-bold text-[#E07A5F] bg-[#E07A5F]/10 px-3 py-1 rounded-full hover:bg-[#E07A5F]/20 transition-colors" data-testid="upgrade-badge">
+              <Sparkles className="w-3 h-3" /> Upgrade
+            </Link>
+          </div>
         </motion.div>
 
         {/* Stat Cards - matching screenshot design */}

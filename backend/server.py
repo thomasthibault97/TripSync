@@ -1443,6 +1443,106 @@ async def submit_guest_availability(token: str, input: GuestAvailabilityInput):
         )
     return {"message": "Availability submitted! The trip organizer will see your dates."}
 
+# ---- SUBSCRIPTION / PRICING ----
+PLANS = {
+    "free": {"name": "Explorer", "price": 0, "trips": 5, "participants": 6, "ai": True, "budget_tracker": True, "guest_links": True, "deal_finder": True, "templates": True, "flight_coord": False, "priority_ai": False, "export": False, "cost_split_pay": False},
+    "pro": {"name": "Voyager", "price": 9.00, "trips": -1, "participants": 15, "ai": True, "budget_tracker": True, "guest_links": True, "deal_finder": True, "templates": True, "flight_coord": True, "priority_ai": True, "export": True, "cost_split_pay": False},
+    "team": {"name": "Odyssey", "price": 19.00, "trips": -1, "participants": -1, "ai": True, "budget_tracker": True, "guest_links": True, "deal_finder": True, "templates": True, "flight_coord": True, "priority_ai": True, "export": True, "cost_split_pay": True},
+}
+
+@api_router.get("/plans")
+async def get_plans():
+    return {"plans": PLANS}
+
+@api_router.get("/subscription/status")
+async def get_subscription_status(user=Depends(get_current_user)):
+    sub = await db.subscriptions.find_one({"user_id": user["_id"], "status": "active"}, {"_id": 0})
+    if sub:
+        return {"plan": sub.get("plan", "free"), "status": "active", "details": PLANS.get(sub.get("plan", "free"), PLANS["free"]), "subscription": sub}
+    return {"plan": "free", "status": "active", "details": PLANS["free"], "subscription": None}
+
+@api_router.post("/subscription/checkout")
+async def create_subscription_checkout(request: Request, user=Depends(get_current_user)):
+    body = await request.json()
+    plan_id = body.get("plan_id", "")
+    origin_url = body.get("origin_url", "")
+
+    if plan_id not in PLANS or plan_id == "free":
+        raise HTTPException(status_code=400, detail="Invalid plan")
+
+    plan = PLANS[plan_id]
+    amount = plan["price"]
+
+    try:
+        from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionRequest
+        api_key = os.environ.get("STRIPE_API_KEY", "")
+        host_url = str(request.base_url)
+        webhook_url = f"{host_url}api/webhook/stripe"
+        stripe_checkout = StripeCheckout(api_key=api_key, webhook_url=webhook_url)
+
+        success_url = f"{origin_url}/subscription/success?session_id={{CHECKOUT_SESSION_ID}}"
+        cancel_url = f"{origin_url}/pricing"
+
+        checkout_req = CheckoutSessionRequest(
+            amount=float(amount),
+            currency="usd",
+            success_url=success_url,
+            cancel_url=cancel_url,
+            metadata={"user_id": user["_id"], "plan_id": plan_id, "user_email": user.get("email", ""), "type": "subscription"}
+        )
+        session = await stripe_checkout.create_checkout_session(checkout_req)
+
+        # Record pending transaction
+        await db.payment_transactions.insert_one({
+            "session_id": session.session_id,
+            "user_id": user["_id"],
+            "plan_id": plan_id,
+            "amount": amount,
+            "currency": "usd",
+            "payment_status": "pending",
+            "type": "subscription",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+
+        return {"url": session.url, "session_id": session.session_id}
+    except Exception as e:
+        logger.error(f"Stripe checkout error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.get("/subscription/verify/{session_id}")
+async def verify_subscription(session_id: str, user=Depends(get_current_user)):
+    txn = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
+    if not txn:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+    if txn.get("payment_status") == "paid":
+        return {"status": "paid", "plan": txn.get("plan_id")}
+
+    try:
+        from emergentintegrations.payments.stripe.checkout import StripeCheckout
+        api_key = os.environ.get("STRIPE_API_KEY", "")
+        stripe_checkout = StripeCheckout(api_key=api_key, webhook_url="")
+        status = await stripe_checkout.get_checkout_status(session_id)
+
+        new_status = status.payment_status
+        await db.payment_transactions.update_one(
+            {"session_id": session_id},
+            {"$set": {"payment_status": new_status, "status": status.status, "verified_at": datetime.now(timezone.utc).isoformat()}}
+        )
+
+        if new_status == "paid":
+            plan_id = txn.get("plan_id", "pro")
+            await db.subscriptions.update_one(
+                {"user_id": txn["user_id"]},
+                {"$set": {"user_id": txn["user_id"], "plan": plan_id, "status": "active", "started_at": datetime.now(timezone.utc).isoformat(), "session_id": session_id}},
+                upsert=True
+            )
+            return {"status": "paid", "plan": plan_id}
+        return {"status": new_status, "plan": txn.get("plan_id")}
+    except Exception as e:
+        logger.error(f"Verify error: {e}")
+        return {"status": "pending", "plan": txn.get("plan_id")}
+
 # ---- MOCK EMAIL SERVICE ----
 email_log = []  # In-memory log of sent emails
 

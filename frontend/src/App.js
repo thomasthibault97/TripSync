@@ -26,6 +26,8 @@ import GuestAvailability from "@/pages/GuestAvailability";
 import BudgetTracker from "@/pages/BudgetTracker";
 import SlotPriceComparison from "@/pages/SlotPriceComparison";
 import FlightCoordination from "@/pages/FlightCoordination";
+import Pricing from "@/pages/Pricing";
+import SubscriptionSuccess from "@/pages/SubscriptionSuccess";
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -53,6 +55,8 @@ function AppRouter() {
       <Route path="/auth" element={<Auth />} />
       <Route path="/join/:inviteCode" element={<JoinTrip />} />
       <Route path="/guest/:token" element={<GuestAvailability />} />
+      <Route path="/pricing" element={<Pricing />} />
+      <Route path="/subscription/success" element={<ProtectedRoute><SubscriptionSuccess /></ProtectedRoute>} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/create-trip" element={<ProtectedRoute><CreateTrip /></ProtectedRoute>} />
       <Route path="/trip/:tripId" element={<ProtectedRoute><TripWorkspace /></ProtectedRoute>} />

@@ -680,8 +680,203 @@ class TripSyncAPITester:
         
         return success, response
 
+    def test_get_plans(self):
+        """Test GET /api/plans - should return 3 plans"""
+        success, response = self.run_test(
+            "Get Subscription Plans",
+            "GET",
+            "plans",
+            200
+        )
+        if success:
+            plans = response.get('plans', {})
+            print(f"   Found {len(plans)} plans")
+            for plan_id, plan_data in plans.items():
+                print(f"     - {plan_data.get('name')}: ${plan_data.get('price')}")
+            
+            # Verify we have exactly 3 plans
+            if len(plans) != 3:
+                print(f"   ❌ FAILED: Expected 3 plans, got {len(plans)}")
+                return False, {}
+            
+            # Verify plan names and prices
+            expected_plans = {
+                'free': {'name': 'Explorer', 'price': 0},
+                'pro': {'name': 'Voyager', 'price': 9.00},
+                'team': {'name': 'Odyssey', 'price': 19.00}
+            }
+            
+            for plan_id, expected in expected_plans.items():
+                if plan_id not in plans:
+                    print(f"   ❌ FAILED: Missing plan '{plan_id}'")
+                    return False, {}
+                
+                actual = plans[plan_id]
+                if actual.get('name') != expected['name']:
+                    print(f"   ❌ FAILED: Plan '{plan_id}' name mismatch: expected '{expected['name']}', got '{actual.get('name')}'")
+                    return False, {}
+                
+                if actual.get('price') != expected['price']:
+                    print(f"   ❌ FAILED: Plan '{plan_id}' price mismatch: expected ${expected['price']}, got ${actual.get('price')}")
+                    return False, {}
+            
+            print(f"   ✅ All 3 plans verified: Explorer (free), Voyager ($9), Odyssey ($19)")
+        
+        return success, response
+
+    def test_get_subscription_status(self):
+        """Test GET /api/subscription/status - should return current plan"""
+        success, response = self.run_test(
+            "Get Subscription Status",
+            "GET",
+            "subscription/status",
+            200
+        )
+        if success:
+            plan = response.get('plan', 'unknown')
+            status = response.get('status', 'unknown')
+            details = response.get('details', {})
+            
+            print(f"   Current plan: {plan}")
+            print(f"   Status: {status}")
+            print(f"   Plan name: {details.get('name', 'N/A')}")
+            print(f"   Price: ${details.get('price', 0)}")
+            
+            # For test user, should be 'free' plan
+            if plan != 'free':
+                print(f"   ⚠️  Expected 'free' plan for test user, got '{plan}'")
+        
+        return success, response
+
+    def test_create_subscription_checkout(self):
+        """Test POST /api/subscription/checkout - should return Stripe checkout URL"""
+        checkout_data = {
+            "plan_id": "pro",
+            "origin_url": "https://sync-trips.preview.emergentagent.com"
+        }
+        
+        success, response = self.run_test(
+            "Create Subscription Checkout",
+            "POST",
+            "subscription/checkout",
+            200,
+            data=checkout_data
+        )
+        if success:
+            url = response.get('url', '')
+            session_id = response.get('session_id', '')
+            
+            print(f"   Checkout URL: {url[:80]}...")
+            print(f"   Session ID: {session_id}")
+            
+            # Verify URL is a Stripe checkout URL
+            if not url.startswith('https://checkout.stripe.com'):
+                print(f"   ❌ FAILED: Expected Stripe checkout URL, got: {url}")
+                return False, {}
+            
+            if not session_id:
+                print(f"   ❌ FAILED: No session_id returned")
+                return False, {}
+            
+            print(f"   ✅ Stripe checkout session created successfully")
+        
+        return success, response
+
+    def test_trip_with_4_participants_barcelona_winner(self):
+        """Test GET /api/trips/{trip_id} - should show 4 participants and Barcelona as winner"""
+        if not self.trip_id:
+            return False, {}
+        
+        success, response = self.run_test(
+            "Get Trip with 4 Participants and Barcelona Winner",
+            "GET",
+            f"trips/{self.trip_id}",
+            200
+        )
+        if success:
+            participants = response.get('participants', [])
+            readiness = response.get('readiness', {})
+            winning_dest = readiness.get('winning_destination')
+            
+            print(f"   Participants: {len(participants)}")
+            for p in participants:
+                print(f"     - {p.get('name')}")
+            
+            print(f"   Readiness score: {readiness.get('score')}%")
+            
+            if winning_dest:
+                print(f"   Winning destination: {winning_dest.get('name')} ({winning_dest.get('country')})")
+                
+                # Verify Barcelona is the winner
+                if winning_dest.get('name') != 'Barcelona':
+                    print(f"   ⚠️  Expected Barcelona as winner, got {winning_dest.get('name')}")
+            else:
+                print(f"   ⚠️  No winning destination found")
+            
+            # Verify we have 4 participants
+            if len(participants) != 4:
+                print(f"   ⚠️  Expected 4 participants, got {len(participants)}")
+            else:
+                print(f"   ✅ Confirmed 4 participants")
+            
+            # Check readiness score is around 67%
+            score = readiness.get('score', 0)
+            if 60 <= score <= 75:
+                print(f"   ✅ Readiness score ~67% (actual: {score}%)")
+            else:
+                print(f"   ⚠️  Expected readiness score ~67%, got {score}%")
+        
+        return success, response
+
+    def test_availability_heatmap_4_participants(self):
+        """Test GET /api/trips/{trip_id}/availability-heatmap - should show 4+ participants with overlapping dates"""
+        if not self.trip_id:
+            return False, {}
+        
+        success, response = self.run_test(
+            "Get Availability Heatmap with 4+ Participants",
+            "GET",
+            f"trips/{self.trip_id}/availability-heatmap",
+            200
+        )
+        if success:
+            participant_grid = response.get('participant_grid', [])
+            best_periods = response.get('best_periods', [])
+            heatmap = response.get('heatmap', {})
+            
+            print(f"   Participants in grid: {len(participant_grid)}")
+            for p in participant_grid:
+                name = p.get('name', 'Unknown')
+                dates_count = len(p.get('dates', {}))
+                print(f"     - {name}: {dates_count} available dates")
+            
+            print(f"   Best periods found: {len(best_periods)}")
+            if best_periods:
+                for i, period in enumerate(best_periods[:3]):
+                    print(f"     Period {i+1}: {period.get('start')} to {period.get('end')} ({period.get('days')} days, score: {period.get('score')}%)")
+            
+            # Check for overlapping dates around May 1-5
+            may_dates = [d for d in heatmap.keys() if d.startswith('2025-05-0') or d.startswith('2025-05-1')]
+            if may_dates:
+                print(f"   May dates in heatmap: {len(may_dates)}")
+                # Check overlap on May 1-5
+                may_1_5 = [d for d in may_dates if d in ['2025-05-01', '2025-05-02', '2025-05-03', '2025-05-04', '2025-05-05']]
+                if may_1_5:
+                    print(f"   Overlapping dates around May 1-5: {len(may_1_5)} dates")
+                    for date in may_1_5:
+                        count = heatmap.get(date, {}).get('count', 0)
+                        print(f"     {date}: {count} participants available")
+            
+            # Verify we have 4+ participants
+            if len(participant_grid) < 4:
+                print(f"   ⚠️  Expected 4+ participants, got {len(participant_grid)}")
+            else:
+                print(f"   ✅ Confirmed {len(participant_grid)} participants")
+        
+        return success, response
+
 def main():
-    print("🚀 Starting TripSync New Features API Tests")
+    print("🚀 Starting TripSync Subscription & Pricing API Tests")
     print("=" * 60)
     
     # Setup
@@ -697,6 +892,36 @@ def main():
     # Use the specific trip ID from review request
     tester.trip_id = "69dd58b0c6fe98204ff8ea9b"
     print(f"Using specified trip ID: {tester.trip_id}")
+
+    # ===== NEW SUBSCRIPTION/PRICING TESTS =====
+    print("\n💳 Testing Subscription & Pricing APIs...")
+    
+    # 1. Test GET /api/plans
+    success, plans_data = tester.test_get_plans()
+    if not success:
+        print("❌ CRITICAL: Failed to get subscription plans")
+    
+    # 2. Test GET /api/subscription/status
+    success, status_data = tester.test_get_subscription_status()
+    if not success:
+        print("❌ CRITICAL: Failed to get subscription status")
+    
+    # 3. Test POST /api/subscription/checkout
+    success, checkout_data = tester.test_create_subscription_checkout()
+    if not success:
+        print("❌ CRITICAL: Failed to create subscription checkout")
+    
+    # 4. Test trip with 4 participants and Barcelona winner
+    print("\n🌍 Testing Trip with 4 Participants and Barcelona Winner...")
+    success, trip_data = tester.test_trip_with_4_participants_barcelona_winner()
+    if not success:
+        print("❌ CRITICAL: Failed to get trip with 4 participants")
+    
+    # 5. Test availability heatmap with 4+ participants
+    print("\n📅 Testing Availability Heatmap with 4+ Participants...")
+    success, heatmap_data = tester.test_availability_heatmap_4_participants()
+    if not success:
+        print("❌ CRITICAL: Failed to get availability heatmap")
 
     # Test trip details
     success, trip_details = tester.test_get_trip_details()

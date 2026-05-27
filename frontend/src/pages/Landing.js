@@ -65,6 +65,7 @@ export default function Landing() {
             <a href="#how-it-works" className="text-sm font-['Outfit'] text-[#5C5C5C] hover:text-[#1A1A1A] transition-colors">How it works</a>
             <a href="#destinations" className="text-sm font-['Outfit'] text-[#5C5C5C] hover:text-[#1A1A1A] transition-colors">Destinations</a>
             <a href="#trip-types" className="text-sm font-['Outfit'] text-[#5C5C5C] hover:text-[#1A1A1A] transition-colors">Trip Types</a>
+            <Link to="/pricing" className="text-sm font-['Outfit'] text-[#E07A5F] hover:text-[#D26A4F] transition-colors font-medium">Pricing</Link>
           </div>
           <div className="flex items-center gap-3">
             {user ? (
