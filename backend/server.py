@@ -1445,9 +1445,9 @@ async def submit_guest_availability(token: str, input: GuestAvailabilityInput):
 
 # ---- SUBSCRIPTION / PRICING ----
 PLANS = {
-    "free": {"name": "Explorer", "price": 0, "trips": 5, "participants": 6, "ai": True, "budget_tracker": True, "guest_links": True, "deal_finder": True, "templates": True, "flight_coord": False, "priority_ai": False, "export": False, "cost_split_pay": False},
-    "pro": {"name": "Voyager", "price": 9.00, "trips": -1, "participants": 15, "ai": True, "budget_tracker": True, "guest_links": True, "deal_finder": True, "templates": True, "flight_coord": True, "priority_ai": True, "export": True, "cost_split_pay": False},
-    "team": {"name": "Odyssey", "price": 19.00, "trips": -1, "participants": -1, "ai": True, "budget_tracker": True, "guest_links": True, "deal_finder": True, "templates": True, "flight_coord": True, "priority_ai": True, "export": True, "cost_split_pay": True},
+    "free": {"name": "Explorer", "price_monthly": 0, "price_annual": 0, "trips": 5, "participants": 6, "ai": True, "budget_tracker": True, "guest_links": True, "deal_finder": True, "templates": True, "flight_coord": False, "priority_ai": False, "export": False, "cost_split_pay": False},
+    "pro": {"name": "Voyager", "price_monthly": 9.00, "price_annual": 86.00, "trips": -1, "participants": 15, "ai": True, "budget_tracker": True, "guest_links": True, "deal_finder": True, "templates": True, "flight_coord": True, "priority_ai": True, "export": True, "cost_split_pay": False},
+    "team": {"name": "Odyssey", "price_monthly": 19.00, "price_annual": 182.00, "trips": -1, "participants": -1, "ai": True, "budget_tracker": True, "guest_links": True, "deal_finder": True, "templates": True, "flight_coord": True, "priority_ai": True, "export": True, "cost_split_pay": True},
 }
 
 @api_router.get("/plans")
@@ -1458,20 +1458,22 @@ async def get_plans():
 async def get_subscription_status(user=Depends(get_current_user)):
     sub = await db.subscriptions.find_one({"user_id": user["_id"], "status": "active"}, {"_id": 0})
     if sub:
-        return {"plan": sub.get("plan", "free"), "status": "active", "details": PLANS.get(sub.get("plan", "free"), PLANS["free"]), "subscription": sub}
-    return {"plan": "free", "status": "active", "details": PLANS["free"], "subscription": None}
+        plan_id = sub.get("plan", "free")
+        return {"plan": plan_id, "status": "active", "billing": sub.get("billing", "monthly"), "details": PLANS.get(plan_id, PLANS["free"]), "subscription": sub}
+    return {"plan": "free", "status": "active", "billing": "monthly", "details": PLANS["free"], "subscription": None}
 
 @api_router.post("/subscription/checkout")
 async def create_subscription_checkout(request: Request, user=Depends(get_current_user)):
     body = await request.json()
     plan_id = body.get("plan_id", "")
     origin_url = body.get("origin_url", "")
+    billing = body.get("billing", "monthly")  # monthly or annual
 
     if plan_id not in PLANS or plan_id == "free":
         raise HTTPException(status_code=400, detail="Invalid plan")
 
     plan = PLANS[plan_id]
-    amount = plan["price"]
+    amount = plan["price_annual"] if billing == "annual" else plan["price_monthly"]
 
     try:
         from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionRequest
@@ -1488,15 +1490,15 @@ async def create_subscription_checkout(request: Request, user=Depends(get_curren
             currency="usd",
             success_url=success_url,
             cancel_url=cancel_url,
-            metadata={"user_id": user["_id"], "plan_id": plan_id, "user_email": user.get("email", ""), "type": "subscription"}
+            metadata={"user_id": user["_id"], "plan_id": plan_id, "user_email": user.get("email", ""), "type": "subscription", "billing": billing}
         )
         session = await stripe_checkout.create_checkout_session(checkout_req)
 
-        # Record pending transaction
         await db.payment_transactions.insert_one({
             "session_id": session.session_id,
             "user_id": user["_id"],
             "plan_id": plan_id,
+            "billing": billing,
             "amount": amount,
             "currency": "usd",
             "payment_status": "pending",
@@ -1516,7 +1518,7 @@ async def verify_subscription(session_id: str, user=Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Transaction not found")
 
     if txn.get("payment_status") == "paid":
-        return {"status": "paid", "plan": txn.get("plan_id")}
+        return {"status": "paid", "plan": txn.get("plan_id"), "billing": txn.get("billing", "monthly")}
 
     try:
         from emergentintegrations.payments.stripe.checkout import StripeCheckout
@@ -1532,16 +1534,79 @@ async def verify_subscription(session_id: str, user=Depends(get_current_user)):
 
         if new_status == "paid":
             plan_id = txn.get("plan_id", "pro")
+            billing = txn.get("billing", "monthly")
             await db.subscriptions.update_one(
                 {"user_id": txn["user_id"]},
-                {"$set": {"user_id": txn["user_id"], "plan": plan_id, "status": "active", "started_at": datetime.now(timezone.utc).isoformat(), "session_id": session_id}},
+                {"$set": {"user_id": txn["user_id"], "plan": plan_id, "billing": billing, "status": "active", "started_at": datetime.now(timezone.utc).isoformat(), "session_id": session_id}},
                 upsert=True
             )
-            return {"status": "paid", "plan": plan_id}
-        return {"status": new_status, "plan": txn.get("plan_id")}
+            # Send mock email notification
+            user_email = txn.get("user_email", "") or (await db.users.find_one({"_id": txn["user_id"]}, {"email": 1})).get("email", "") if txn.get("user_id") else ""
+            if user_email:
+                plan_name = PLANS.get(plan_id, {}).get("name", plan_id)
+                period = "year" if billing == "annual" else "month"
+                await send_mock_email(
+                    user_email,
+                    f"Welcome to TripSync {plan_name}!",
+                    f"Hi!\n\nYour TripSync {plan_name} subscription is now active.\n"
+                    f"Billing: ${txn.get('amount', 0)}/{period}\n\n"
+                    f"All premium features are now unlocked. Go plan something extraordinary!\n\n"
+                    f"— The TripSync Team"
+                )
+                await send_mock_email(
+                    user_email,
+                    f"Payment receipt — TripSync {plan_name}",
+                    f"Hi!\n\nThis confirms your payment of ${txn.get('amount', 0)} USD for TripSync {plan_name} ({billing}).\n"
+                    f"Transaction ID: {session_id}\n"
+                    f"Date: {datetime.now(timezone.utc).strftime('%B %d, %Y')}\n\n"
+                    f"— TripSync Billing"
+                )
+            return {"status": "paid", "plan": plan_id, "billing": billing}
+        return {"status": new_status, "plan": txn.get("plan_id"), "billing": txn.get("billing", "monthly")}
     except Exception as e:
         logger.error(f"Verify error: {e}")
-        return {"status": "pending", "plan": txn.get("plan_id")}
+        return {"status": "pending", "plan": txn.get("plan_id"), "billing": txn.get("billing", "monthly")}
+
+# ---- A/B TEST ANALYTICS ----
+@api_router.post("/analytics/pricing-event")
+async def track_pricing_event(request: Request):
+    """Track pricing page events for A/B testing"""
+    body = await request.json()
+    event = {
+        "variant": body.get("variant", "A"),
+        "event_type": body.get("event_type", "page_view"),  # page_view, plan_click, subscribe_click, faq_open
+        "plan_id": body.get("plan_id", ""),
+        "billing": body.get("billing", ""),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "user_agent": request.headers.get("user-agent", "")[:200],
+        "session_id": body.get("session_id", "")
+    }
+    await db.pricing_analytics.insert_one(event)
+    return {"ok": True}
+
+@api_router.get("/analytics/pricing-stats")
+async def get_pricing_stats(user=Depends(get_current_user)):
+    """Get A/B test stats for admin"""
+    pipeline = [
+        {"$group": {
+            "_id": {"variant": "$variant", "event_type": "$event_type"},
+            "count": {"$sum": 1}
+        }},
+        {"$sort": {"_id.variant": 1, "_id.event_type": 1}}
+    ]
+    results = await db.pricing_analytics.aggregate(pipeline).to_list(100)
+    stats = {}
+    for r in results:
+        v = r["_id"]["variant"]
+        if v not in stats:
+            stats[v] = {}
+        stats[v][r["_id"]["event_type"]] = r["count"]
+    # Compute conversion rates
+    for v in stats:
+        views = stats[v].get("page_view", 1)
+        clicks = stats[v].get("subscribe_click", 0)
+        stats[v]["conversion_rate"] = round((clicks / max(views, 1)) * 100, 1)
+    return {"stats": stats}
 
 # ---- MOCK EMAIL SERVICE ----
 email_log = []  # In-memory log of sent emails

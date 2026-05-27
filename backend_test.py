@@ -681,7 +681,7 @@ class TripSyncAPITester:
         return success, response
 
     def test_get_plans(self):
-        """Test GET /api/plans - should return 3 plans"""
+        """Test GET /api/plans - should return 3 plans with price_monthly AND price_annual"""
         success, response = self.run_test(
             "Get Subscription Plans",
             "GET",
@@ -692,18 +692,20 @@ class TripSyncAPITester:
             plans = response.get('plans', {})
             print(f"   Found {len(plans)} plans")
             for plan_id, plan_data in plans.items():
-                print(f"     - {plan_data.get('name')}: ${plan_data.get('price')}")
+                monthly = plan_data.get('price_monthly', 'N/A')
+                annual = plan_data.get('price_annual', 'N/A')
+                print(f"     - {plan_data.get('name')}: ${monthly}/mo, ${annual}/yr")
             
             # Verify we have exactly 3 plans
             if len(plans) != 3:
                 print(f"   ❌ FAILED: Expected 3 plans, got {len(plans)}")
                 return False, {}
             
-            # Verify plan names and prices
+            # Verify plan names and prices (monthly AND annual)
             expected_plans = {
-                'free': {'name': 'Explorer', 'price': 0},
-                'pro': {'name': 'Voyager', 'price': 9.00},
-                'team': {'name': 'Odyssey', 'price': 19.00}
+                'free': {'name': 'Explorer', 'price_monthly': 0, 'price_annual': 0},
+                'pro': {'name': 'Voyager', 'price_monthly': 9.00, 'price_annual': 86.00},
+                'team': {'name': 'Odyssey', 'price_monthly': 19.00, 'price_annual': 182.00}
             }
             
             for plan_id, expected in expected_plans.items():
@@ -716,11 +718,17 @@ class TripSyncAPITester:
                     print(f"   ❌ FAILED: Plan '{plan_id}' name mismatch: expected '{expected['name']}', got '{actual.get('name')}'")
                     return False, {}
                 
-                if actual.get('price') != expected['price']:
-                    print(f"   ❌ FAILED: Plan '{plan_id}' price mismatch: expected ${expected['price']}, got ${actual.get('price')}")
+                if actual.get('price_monthly') != expected['price_monthly']:
+                    print(f"   ❌ FAILED: Plan '{plan_id}' monthly price mismatch: expected ${expected['price_monthly']}, got ${actual.get('price_monthly')}")
+                    return False, {}
+                
+                if actual.get('price_annual') != expected['price_annual']:
+                    print(f"   ❌ FAILED: Plan '{plan_id}' annual price mismatch: expected ${expected['price_annual']}, got ${actual.get('price_annual')}")
                     return False, {}
             
-            print(f"   ✅ All 3 plans verified: Explorer (free), Voyager ($9), Odyssey ($19)")
+            print(f"   ✅ All 3 plans verified with monthly AND annual pricing")
+            print(f"   ✅ Voyager: $9/mo or $86/yr (20% savings)")
+            print(f"   ✅ Odyssey: $19/mo or $182/yr (20% savings)")
         
         return success, response
 
@@ -748,15 +756,16 @@ class TripSyncAPITester:
         
         return success, response
 
-    def test_create_subscription_checkout(self):
-        """Test POST /api/subscription/checkout - should return Stripe checkout URL"""
+    def test_create_subscription_checkout_monthly(self):
+        """Test POST /api/subscription/checkout with monthly billing - should use $9"""
         checkout_data = {
             "plan_id": "pro",
+            "billing": "monthly",
             "origin_url": "https://sync-trips.preview.emergentagent.com"
         }
         
         success, response = self.run_test(
-            "Create Subscription Checkout",
+            "Create Subscription Checkout (Monthly)",
             "POST",
             "subscription/checkout",
             200,
@@ -778,7 +787,42 @@ class TripSyncAPITester:
                 print(f"   ❌ FAILED: No session_id returned")
                 return False, {}
             
-            print(f"   ✅ Stripe checkout session created successfully")
+            print(f"   ✅ Monthly checkout session created (should use $9)")
+        
+        return success, response
+
+    def test_create_subscription_checkout_annual(self):
+        """Test POST /api/subscription/checkout with annual billing - should use $86"""
+        checkout_data = {
+            "plan_id": "pro",
+            "billing": "annual",
+            "origin_url": "https://sync-trips.preview.emergentagent.com"
+        }
+        
+        success, response = self.run_test(
+            "Create Subscription Checkout (Annual)",
+            "POST",
+            "subscription/checkout",
+            200,
+            data=checkout_data
+        )
+        if success:
+            url = response.get('url', '')
+            session_id = response.get('session_id', '')
+            
+            print(f"   Checkout URL: {url[:80]}...")
+            print(f"   Session ID: {session_id}")
+            
+            # Verify URL is a Stripe checkout URL
+            if not url.startswith('https://checkout.stripe.com'):
+                print(f"   ❌ FAILED: Expected Stripe checkout URL, got: {url}")
+                return False, {}
+            
+            if not session_id:
+                print(f"   ❌ FAILED: No session_id returned")
+                return False, {}
+            
+            print(f"   ✅ Annual checkout session created (should use $86)")
         
         return success, response
 
@@ -830,6 +874,67 @@ class TripSyncAPITester:
 
     def test_availability_heatmap_4_participants(self):
         """Test GET /api/trips/{trip_id}/availability-heatmap - should show 4+ participants with overlapping dates"""
+
+    def test_analytics_pricing_event(self):
+        """Test POST /api/analytics/pricing-event - should store event (no auth needed)"""
+        # Remove auth token for this test (analytics endpoint doesn't require auth)
+        temp_token = self.token
+        self.token = None
+        
+        event_data = {
+            "variant": "A",
+            "event_type": "page_view",
+            "session_id": "test123",
+            "billing": "monthly"
+        }
+        
+        success, response = self.run_test(
+            "Track Pricing Event (No Auth)",
+            "POST",
+            "analytics/pricing-event",
+            200,
+            data=event_data
+        )
+        if success:
+            ok = response.get('ok', False)
+            if ok:
+                print(f"   ✅ Pricing event tracked successfully (no auth required)")
+            else:
+                print(f"   ❌ FAILED: Expected 'ok: true' in response")
+                self.token = temp_token
+                return False, {}
+        
+        # Restore auth token
+        self.token = temp_token
+        return success, response
+
+    def test_analytics_pricing_stats(self):
+        """Test GET /api/analytics/pricing-stats - should return stats with conversion_rate (auth required)"""
+        success, response = self.run_test(
+            "Get Pricing Stats (Auth Required)",
+            "GET",
+            "analytics/pricing-stats",
+            200
+        )
+        if success:
+            stats = response.get('stats', {})
+            print(f"   Found stats for {len(stats)} variants")
+            
+            for variant, data in stats.items():
+                print(f"     Variant {variant}:")
+                print(f"       - page_view: {data.get('page_view', 0)}")
+                print(f"       - subscribe_click: {data.get('subscribe_click', 0)}")
+                print(f"       - conversion_rate: {data.get('conversion_rate', 0)}%")
+                
+                # Verify conversion_rate field exists
+                if 'conversion_rate' not in data:
+                    print(f"   ❌ FAILED: Missing 'conversion_rate' field for variant {variant}")
+                    return False, {}
+            
+            print(f"   ✅ Pricing stats with conversion_rate verified")
+        
+        return success, response
+
         if not self.trip_id:
             return False, {}
         
@@ -896,7 +1001,7 @@ def main():
     # ===== NEW SUBSCRIPTION/PRICING TESTS =====
     print("\n💳 Testing Subscription & Pricing APIs...")
     
-    # 1. Test GET /api/plans
+    # 1. Test GET /api/plans (with price_monthly AND price_annual)
     success, plans_data = tester.test_get_plans()
     if not success:
         print("❌ CRITICAL: Failed to get subscription plans")
@@ -906,10 +1011,26 @@ def main():
     if not success:
         print("❌ CRITICAL: Failed to get subscription status")
     
-    # 3. Test POST /api/subscription/checkout
-    success, checkout_data = tester.test_create_subscription_checkout()
+    # 3. Test POST /api/subscription/checkout with monthly billing ($9)
+    success, checkout_monthly = tester.test_create_subscription_checkout_monthly()
     if not success:
-        print("❌ CRITICAL: Failed to create subscription checkout")
+        print("❌ CRITICAL: Failed to create monthly subscription checkout")
+    
+    # 4. Test POST /api/subscription/checkout with annual billing ($86)
+    success, checkout_annual = tester.test_create_subscription_checkout_annual()
+    if not success:
+        print("❌ CRITICAL: Failed to create annual subscription checkout")
+    
+    # 5. Test POST /api/analytics/pricing-event (no auth)
+    print("\n📊 Testing A/B Testing Analytics APIs...")
+    success, event_data = tester.test_analytics_pricing_event()
+    if not success:
+        print("❌ CRITICAL: Failed to track pricing event")
+    
+    # 6. Test GET /api/analytics/pricing-stats (auth required)
+    success, stats_data = tester.test_analytics_pricing_stats()
+    if not success:
+        print("❌ CRITICAL: Failed to get pricing stats")
     
     # 4. Test trip with 4 participants and Barcelona winner
     print("\n🌍 Testing Trip with 4 Participants and Barcelona Winner...")
