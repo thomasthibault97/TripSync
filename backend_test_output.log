@@ -1,0 +1,215 @@
+🚀 Starting TripSync Subscription & Pricing API Tests
+============================================================
+
+🔍 Testing Admin Login...
+   URL: https://sync-trips.preview.emergentagent.com/api/auth/login
+✅ Passed - Status: 200
+   Token obtained: eyJhbGciOiJIUzI1NiIs...
+Using specified trip ID: 69dd58b0c6fe98204ff8ea9b
+
+💳 Testing Subscription & Pricing APIs...
+
+🔍 Testing Get Subscription Plans...
+   URL: https://sync-trips.preview.emergentagent.com/api/plans
+✅ Passed - Status: 200
+   Found 3 plans
+     - Explorer: $0
+     - Voyager: $9.0
+     - Odyssey: $19.0
+   ✅ All 3 plans verified: Explorer (free), Voyager ($9), Odyssey ($19)
+
+🔍 Testing Get Subscription Status...
+   URL: https://sync-trips.preview.emergentagent.com/api/subscription/status
+✅ Passed - Status: 200
+   Current plan: free
+   Status: active
+   Plan name: Explorer
+   Price: $0
+
+🔍 Testing Create Subscription Checkout...
+   URL: https://sync-trips.preview.emergentagent.com/api/subscription/checkout
+✅ Passed - Status: 200
+   Checkout URL: https://checkout.stripe.com/c/pay/cs_test_a1qdlyru7PHUiDQ9FlPJVQ8sPpcsnZjLcyK88x...
+   Session ID: cs_test_a1qdlyru7PHUiDQ9FlPJVQ8sPpcsnZjLcyK88xyTR2ts31JmlKoxy9XUTV
+   ✅ Stripe checkout session created successfully
+
+🌍 Testing Trip with 4 Participants and Barcelona Winner...
+
+🔍 Testing Get Trip with 4 Participants and Barcelona Winner...
+   URL: https://sync-trips.preview.emergentagent.com/api/trips/69dd58b0c6fe98204ff8ea9b
+✅ Passed - Status: 200
+   Participants: 4
+     - Alice
+     - Bob
+     - Claire
+     - David
+   Readiness score: 67%
+   Winning destination: Barcelona (Spain)
+   ✅ Confirmed 4 participants
+   ✅ Readiness score ~67% (actual: 67%)
+
+📅 Testing Availability Heatmap with 4+ Participants...
+
+🔍 Testing Get Availability Heatmap with 4+ Participants...
+   URL: https://sync-trips.preview.emergentagent.com/api/trips/69dd58b0c6fe98204ff8ea9b/availability-heatmap
+✅ Passed - Status: 200
+   Participants in grid: 6
+     - Alice: 6 available dates
+     - Bob: 10 available dates
+     - Claire: 11 available dates
+     - David: 14 available dates
+     - Test Guest User (guest): 6 available dates
+     - Test Guest User 2 (guest): 6 available dates
+   Best periods found: 2
+     Period 1: 2026-05-12 to 2026-05-15 (4 days, score: 58%)
+     Period 2: 2026-05-01 to 2026-05-05 (5 days, score: 50%)
+   ✅ Confirmed 6 participants
+
+🔍 Testing Get Trip Details...
+   URL: https://sync-trips.preview.emergentagent.com/api/trips/69dd58b0c6fe98204ff8ea9b
+✅ Passed - Status: 200
+   Trip: Beach Trip
+   Participants: 4
+     - Alice (prefs: True)
+     - Bob (prefs: True)
+     - Claire (prefs: True)
+     - David (prefs: True)
+
+🎯 Testing NEW Readiness Score Feature...
+
+🔍 Testing Get Trip Readiness Score...
+   URL: https://sync-trips.preview.emergentagent.com/api/trips/69dd58b0c6fe98204ff8ea9b
+✅ Passed - Status: 200
+   ✅ Readiness score: 67%
+   ✅ Phase: voting
+   ✅ Next action: Check availability and lock travel dates
+   ✅ Checks:
+      - has_participants: True
+      - all_prefs_submitted: True
+      - has_dates_locked: False
+      - has_votes: True
+      - has_budget_items: False
+      - has_destination: True
+   ✅ Winning destination: Barcelona
+   ✅ Prefs count: 4
+   ✅ Votes count: 7
+   ✅ Budget items count: 0
+
+📊 Testing Budget Tracker APIs...
+
+🔍 Testing Get Trip Budget...
+   URL: https://sync-trips.preview.emergentagent.com/api/trips/69dd58b0c6fe98204ff8ea9b/budget
+✅ Passed - Status: 200
+   Budget items: 0
+   Total per person: 0 EUR
+   Target per person: 500 EUR
+   Percentage used: 0%
+
+🔍 Testing Get Budget Suggestions...
+   URL: https://sync-trips.preview.emergentagent.com/api/trips/69dd58b0c6fe98204ff8ea9b/budget/suggestions
+✅ Passed - Status: 200
+   Found 5 destination suggestions
+     - Paris: 13 suggested items
+     - Barcelona: 12 suggested items
+
+🔍 Testing Add Budget Item...
+   URL: https://sync-trips.preview.emergentagent.com/api/trips/69dd58b0c6fe98204ff8ea9b/budget
+✅ Passed - Status: 200
+   Budget item added: Test flight expense
+   Amount: 150.0 None
+
+🔍 Testing Get Trip Budget...
+   URL: https://sync-trips.preview.emergentagent.com/api/trips/69dd58b0c6fe98204ff8ea9b/budget
+✅ Passed - Status: 200
+   Budget items: 1
+   Total per person: 150.0 EUR
+   Target per person: 500 EUR
+   Percentage used: 30%
+✅ Budget now has 1 items
+
+🔍 Testing Delete Budget Item...
+   URL: https://sync-trips.preview.emergentagent.com/api/trips/69dd58b0c6fe98204ff8ea9b/budget/6a1733048b6aaa397e555549
+✅ Passed - Status: 200
+   Budget item deleted successfully
+
+💰 Testing Slot Price Comparison API...
+
+🔍 Testing Get Slot Prices...
+   URL: https://sync-trips.preview.emergentagent.com/api/trips/69dd58b0c6fe98204ff8ea9b/slot-prices
+✅ Passed - Status: 200
+   Found 5 destination comparisons
+     - Barcelona: 7 time slots
+     - Paris: 7 time slots
+
+✈️ Testing Flight Coordination API...
+
+🔍 Testing Get Flight Coordination...
+   URL: https://sync-trips.preview.emergentagent.com/api/trips/69dd58b0c6fe98204ff8ea9b/flight-coordination
+✅ Passed - Status: 200
+   Message: Lock dates first to coordinate flights
+
+🔍 Testing Get Email Log...
+   URL: https://sync-trips.preview.emergentagent.com/api/email-log
+✅ Passed - Status: 200
+   Found 0 mock emails
+
+🔍 Testing Get Availability Heatmap with Auto-suggestion...
+   URL: https://sync-trips.preview.emergentagent.com/api/trips/69dd58b0c6fe98204ff8ea9b/availability-heatmap
+✅ Passed - Status: 200
+   Auto-lock suggestion: No
+
+🔍 Testing Lock Dates...
+   URL: https://sync-trips.preview.emergentagent.com/api/trips/69dd58b0c6fe98204ff8ea9b/lock-dates
+✅ Passed - Status: 200
+   Dates locked: 2026-06-26 to 2026-07-01
+   Locked by: Alice
+
+🔍 Testing Get Email Log...
+   URL: https://sync-trips.preview.emergentagent.com/api/email-log
+✅ Passed - Status: 200
+   Found 2 mock emails
+     - To: guest@example.com, Subject: Dates confirmed for Beach Trip!
+     - To: testguest2@example.com, Subject: Dates confirmed for Beach Trip!
+✅ Mock email notification sent after locking dates
+
+🔍 Testing Get Guest Trip Info...
+   URL: https://sync-trips.preview.emergentagent.com/api/trips/guest/1FKCbgUkdiu9cqepJvEF_g
+✅ Passed - Status: 200
+   Trip name: Beach Trip
+   Owner: Alice
+   Participants: 4
+   Existing guest submissions: 2
+
+🔍 Testing Check Guest Existing Submission...
+   URL: https://sync-trips.preview.emergentagent.com/api/trips/guest/1FKCbgUkdiu9cqepJvEF_g/check/Test%20Guest%20User
+✅ Passed - Status: 200
+   Guest found: True
+   Existing date ranges: 1
+
+🔍 Testing Submit Guest Availability...
+   URL: https://sync-trips.preview.emergentagent.com/api/trips/guest/1FKCbgUkdiu9cqepJvEF_g/submit
+✅ Passed - Status: 200
+   Guest availability submitted successfully
+
+🔍 Testing Get Availability Heatmap with Auto-suggestion...
+   URL: https://sync-trips.preview.emergentagent.com/api/trips/69dd58b0c6fe98204ff8ea9b/availability-heatmap
+✅ Passed - Status: 200
+   Auto-lock suggestion: No
+✅ Guest data in heatmap: 2 guest participants
+
+🔍 Testing Unlock Dates...
+   URL: https://sync-trips.preview.emergentagent.com/api/trips/69dd58b0c6fe98204ff8ea9b/unlock-dates
+✅ Passed - Status: 200
+   Dates unlocked successfully
+
+🔍 Testing Get Notifications...
+   URL: https://sync-trips.preview.emergentagent.com/api/notifications
+✅ Passed - Status: 200
+   Found 10 notifications
+     - Guest submitted dates!: Test Guest User shared their travel dates via gues...
+     - New participant!: David joined your trip...
+     - New participant!: Claire joined your trip...
+
+============================================================
+📊 Tests completed: 25/25 passed
+🎉 All backend tests passed!

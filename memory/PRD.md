@@ -1,26 +1,24 @@
 # TripSync — AI-Powered Group Travel Platform
 
 ## Architecture
-React 19 + Tailwind + Shadcn + Framer Motion | FastAPI + WebSocket | MongoDB | JWT (sessionStorage) + Google OAuth | Stripe
+React 19 + Tailwind + Shadcn + Framer Motion | FastAPI + WebSocket | MongoDB | JWT + Google OAuth | Stripe
 
-## 28 Pages
-Landing, Auth, AuthCallback, Dashboard, CreateTrip, TripTemplates, TripWorkspace, PreferencesForm, Recommendations, DestinationDetail, Voting, FinalItinerary, CostSplitter, PaymentSuccess, Receipt, SmartWeekendFinder, DealFinder, AvailabilityHeatmap, GroupPolls, JoinTrip, AdminPanel, GuestAvailability, BudgetTracker, SlotPriceComparison, FlightCoordination
+## Business Model
+- Explorer (Free): 5 trips, 6 participants, AI matching, budget tracker, guest links, deal finder, templates
+- Voyager ($9/mo): Unlimited trips, 15 participants, flight coordination, priority AI, calendar export
+- Odyssey ($19/mo): Unlimited everything, Stripe cost splitting
 
-## 17 Major Features
-1. Core MVP (Auth, 10 destinations, matching, voting, itinerary)
-2. Google OAuth + WebSocket + Stripe
-3. PWA + Smart Weekend Finder + Weather
-4. Trip Templates + AI Chatbot (GPT-5.2) + Deal Finder + Calendar Export
-5. Date Range Picker (departure→return pairs)
-6. Lock in Dates + Unlock (owner-only, notifications)
-7. Share Availability Link (guest page, no auth)
-8. Mock Email Service + Guest Edit on Revisit
-9. Auto Lock Suggestion
-10. Slot Price Comparison (mock prices per slot)
-11. Flight Coordination (synchronized arrivals within 1h)
-12. Trip Budget Tracker (dedicated page + floating widget + suggestions)
-13. UI/UX Overhaul (Cormorant Garamond, editorial luxury)
-14. Code Quality (SHA256, sessionStorage, error handling, refactoring)
-15. Component Splitting (Heatmap 686→457, PreferencesForm 612→401)
-16. Trip Progress Bar (6-step visual pipeline)
-17. Trip Readiness Score + Smart Summary + Next Action
+## 30 Pages
+Landing, Auth, AuthCallback, Dashboard, CreateTrip, TripTemplates, TripWorkspace, PreferencesForm, Recommendations, DestinationDetail, Voting, FinalItinerary, CostSplitter, PaymentSuccess, Receipt, SmartWeekendFinder, DealFinder, AvailabilityHeatmap, GroupPolls, JoinTrip, AdminPanel, GuestAvailability, BudgetTracker, SlotPriceComparison, FlightCoordination, Pricing, SubscriptionSuccess
+
+## 20 Major Features
+Core MVP, Google OAuth, Stripe, PWA, Smart Weekend, Weather, Templates, AI Chatbot, Deal Finder, Calendar Export, Date Range Picker, Lock/Unlock Dates, Guest Availability Links, Mock Email, Auto Lock Suggestion, Budget Tracker, Slot Price Comparison, Flight Coordination, Trip Progress Bar + Readiness Score, Subscription System with Stripe
+
+## Test Users
+- alice_range@test.com (London) — trip owner
+- bob@test.com (Paris)
+- claire@test.com (Lyon)
+- david@test.com (Barcelona)
+- All: password Test123456
+- Trip ID: 69dd58b0c6fe98204ff8ea9b
+- Barcelona winning destination, 67% ready
