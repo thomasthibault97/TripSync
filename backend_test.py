@@ -109,6 +109,54 @@ class TripSyncAPITester:
                 print(f"     - {p.get('name')} (prefs: {p.get('preferences_submitted', False)})")
         return success, response
 
+    def test_readiness_score(self):
+        """Test NEW readiness score feature in trip details"""
+        if not self.trip_id:
+            return False, {}
+        
+        success, response = self.run_test(
+            "Get Trip Readiness Score",
+            "GET",
+            f"trips/{self.trip_id}",
+            200
+        )
+        if success:
+            readiness = response.get('readiness')
+            if not readiness:
+                print(f"   ❌ FAILED: No 'readiness' field in response")
+                return False, {}
+            
+            # Check required fields
+            required_fields = ['score', 'checks', 'phase', 'next_action']
+            missing_fields = [f for f in required_fields if f not in readiness]
+            if missing_fields:
+                print(f"   ❌ FAILED: Missing required fields: {missing_fields}")
+                return False, {}
+            
+            print(f"   ✅ Readiness score: {readiness.get('score')}%")
+            print(f"   ✅ Phase: {readiness.get('phase')}")
+            print(f"   ✅ Next action: {readiness.get('next_action')}")
+            
+            # Check checks object
+            checks = readiness.get('checks', {})
+            print(f"   ✅ Checks:")
+            for check_name, check_value in checks.items():
+                print(f"      - {check_name}: {check_value}")
+            
+            # Check winning_destination (optional, can be null)
+            winning_dest = readiness.get('winning_destination')
+            if winning_dest:
+                print(f"   ✅ Winning destination: {winning_dest.get('name', 'N/A')}")
+            else:
+                print(f"   ✅ Winning destination: None (no votes yet)")
+            
+            # Check counts
+            print(f"   ✅ Prefs count: {readiness.get('prefs_count', 0)}")
+            print(f"   ✅ Votes count: {readiness.get('votes_count', 0)}")
+            print(f"   ✅ Budget items count: {readiness.get('budget_items_count', 0)}")
+            
+        return success, response
+
     def test_get_polls(self):
         """Test getting polls for a trip"""
         if not self.trip_id:
@@ -654,6 +702,12 @@ def main():
     success, trip_details = tester.test_get_trip_details()
     if not success:
         print("❌ Failed to get trip details")
+
+    # Test NEW READINESS SCORE FEATURE
+    print("\n🎯 Testing NEW Readiness Score Feature...")
+    success, readiness_data = tester.test_readiness_score()
+    if not success:
+        print("❌ CRITICAL: Readiness score feature test failed")
 
     # Test NEW FEATURES from review request:
 

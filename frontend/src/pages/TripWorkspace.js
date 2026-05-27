@@ -114,10 +114,85 @@ export default function TripWorkspace() {
           <div className="flex items-center gap-2 mb-2">
             <span className="trip-badge bg-[#2C4234]/10 text-[#2C4234]">{TRIP_TYPE_LABELS[trip.trip_type] || trip.trip_type}</span>
             <span className="text-xs text-[#5C605E] px-2 py-0.5 bg-[#E5E4DE] rounded-full">{trip.status}</span>
+            {trip.readiness && (
+              <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                trip.readiness.score >= 80 ? 'bg-emerald-100 text-emerald-700' :
+                trip.readiness.score >= 50 ? 'bg-amber-100 text-amber-700' :
+                'bg-blue-100 text-blue-700'
+              }`} data-testid="readiness-badge">{trip.readiness.score}% ready</span>
+            )}
           </div>
-          <h1 className="font-['Outfit'] text-3xl lg:text-4xl font-medium text-[#1C1E1D] mb-2">{trip.name}</h1>
-          {trip.description && <p className="text-[#5C605E] max-w-2xl">{trip.description}</p>}
+          <h1 className="font-['Cormorant_Garamond'] text-3xl lg:text-4xl font-medium text-[#1C1E1D] mb-2">{trip.name}</h1>
+          {trip.description && <p className="text-[#5C605E] max-w-2xl font-['Outfit']">{trip.description}</p>}
         </motion.div>
+
+        {/* Trip Progress Bar */}
+        {trip.readiness && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+            className="bg-white rounded-3xl border border-[#E5E4DE] p-6 mb-8" data-testid="trip-progress">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-['Outfit'] font-bold text-[#1C1E1D] text-sm">Trip Progress</h3>
+              <span className="text-xs text-[#E07A5F] font-['Outfit'] font-medium">{trip.readiness.next_action}</span>
+            </div>
+            <div className="flex items-center gap-1 mb-3">
+              {[
+                { key: 'setup', label: 'Setup', check: true },
+                { key: 'preferences', label: 'Preferences', check: trip.readiness.checks.all_prefs_submitted },
+                { key: 'dates', label: 'Dates', check: trip.readiness.checks.has_dates_locked },
+                { key: 'voting', label: 'Voting', check: trip.readiness.checks.has_votes },
+                { key: 'budget', label: 'Budget', check: trip.readiness.checks.has_budget_items },
+                { key: 'booked', label: 'Booked', check: trip.status === 'booked' || trip.status === 'completed' },
+              ].map((step, i, arr) => (
+                <div key={step.key} className="flex items-center flex-1">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all ${
+                    step.check ? 'bg-emerald-500 text-white' :
+                    trip.readiness.phase === step.key ? 'bg-[#E07A5F] text-white animate-pulse' :
+                    'bg-[#E5E4DE] text-[#5C605E]'
+                  }`}>
+                    {step.check ? <Check className="w-4 h-4" /> : i + 1}
+                  </div>
+                  {i < arr.length - 1 && (
+                    <div className={`flex-1 h-1 mx-1 rounded-full ${step.check ? 'bg-emerald-500' : 'bg-[#E5E4DE]'}`} />
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-between text-[9px] text-[#5C605E] font-['Outfit'] uppercase tracking-wider">
+              <span>Setup</span><span>Prefs</span><span>Dates</span><span>Vote</span><span>Budget</span><span>Book</span>
+            </div>
+            {/* Smart summary row */}
+            <div className="mt-4 pt-4 border-t border-[#E5E4DE] grid grid-cols-2 md:grid-cols-4 gap-4">
+              {trip.locked_dates && (
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center"><Calendar className="w-3.5 h-3.5 text-emerald-600" /></div>
+                  <div><div className="text-[10px] text-[#5C605E]">Locked dates</div>
+                    <div className="text-xs font-medium text-[#1C1E1D]">{new Date(trip.locked_dates.start+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})} → {new Date(trip.locked_dates.end+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>
+                  </div>
+                </div>
+              )}
+              {trip.readiness.winning_destination && (
+                <div className="flex items-center gap-2">
+                  <img src={trip.readiness.winning_destination.image} alt="" className="w-7 h-7 rounded-lg object-cover" />
+                  <div><div className="text-[10px] text-[#5C605E]">Top destination</div>
+                    <div className="text-xs font-medium text-[#1C1E1D]">{trip.readiness.winning_destination.name}</div>
+                  </div>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center"><Users className="w-3.5 h-3.5 text-blue-600" /></div>
+                <div><div className="text-[10px] text-[#5C605E]">Participants</div>
+                  <div className="text-xs font-medium text-[#1C1E1D]">{participants.length}/{trip.group_size}</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-[#E07A5F]/10 flex items-center justify-center"><Wallet className="w-3.5 h-3.5 text-[#E07A5F]" /></div>
+                <div><div className="text-[10px] text-[#5C605E]">Budget items</div>
+                  <div className="text-xs font-medium text-[#1C1E1D]">{trip.readiness.budget_items_count} added</div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
 
         {/* Quick Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -138,8 +213,8 @@ export default function TripWorkspace() {
           </div>
           <div className="bg-white rounded-2xl p-5 border border-[#E5E4DE]">
             <Calendar className="w-5 h-5 text-[#D96A53] mb-2" />
-            <div className="text-lg font-['Outfit'] font-medium text-[#1C1E1D]">{trip.start_date || 'Flexible'}</div>
-            <div className="text-xs text-[#5C605E]">Dates</div>
+            <div className="text-lg font-['Outfit'] font-medium text-[#1C1E1D]">{trip.locked_dates ? `${new Date(trip.locked_dates.start+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}` : trip.start_date || 'Flexible'}</div>
+            <div className="text-xs text-[#5C605E]">{trip.locked_dates ? 'Locked' : 'Dates'}</div>
           </div>
         </div>
 

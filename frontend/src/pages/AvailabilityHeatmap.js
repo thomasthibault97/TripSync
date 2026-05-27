@@ -261,6 +261,27 @@ export default function AvailabilityHeatmap() {
           </div>
         </motion.div>
 
+        {/* Quick Actions Row */}
+        {lockedDates && (
+          <div className="flex gap-3 mb-6 flex-wrap">
+            <Link to={`/trip/${tripId}/slot-prices`}>
+              <Button variant="outline" className="rounded-full border-[#E8E4DF] font-['Outfit'] hover:bg-sky-50 hover:border-sky-300 hover:text-sky-700" data-testid="compare-prices-link">
+                <Calendar className="w-4 h-4 mr-1.5" /> Compare Prices per Slot
+              </Button>
+            </Link>
+            <Link to={`/trip/${tripId}/flights`}>
+              <Button variant="outline" className="rounded-full border-[#E8E4DF] font-['Outfit'] hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700" data-testid="coordinate-flights-link">
+                <Sparkles className="w-4 h-4 mr-1.5" /> Coordinate Group Flights
+              </Button>
+            </Link>
+            <Link to={`/trip/${tripId}/budget`}>
+              <Button variant="outline" className="rounded-full border-[#E8E4DF] font-['Outfit'] hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-700" data-testid="budget-link">
+                <Calendar className="w-4 h-4 mr-1.5" /> Budget Tracker
+              </Button>
+            </Link>
+          </div>
+        )}
+
         <BestPeriodsSection bestPeriods={bestPeriods} heatmap={heatmap} totalWithPrefs={totalWithPrefs} />
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">

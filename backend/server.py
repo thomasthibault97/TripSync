@@ -337,6 +337,71 @@ async def get_trip(trip_id: str, user=Depends(get_current_user)):
     if not trip:
         raise HTTPException(status_code=404, detail="Trip not found")
     trip["id"] = str(trip.pop("_id"))
+
+    # Compute readiness score
+    participants = trip.get("participants", [])
+    prefs = await db.preferences.find({"trip_id": trip_id}, {"_id": 0}).to_list(100)
+    votes = await db.votes.find({"trip_id": trip_id}, {"_id": 0}).to_list(200)
+    budget_items = await db.budget_items.find({"trip_id": trip_id}, {"_id": 0}).to_list(200)
+
+    checks = {
+        "has_participants": len(participants) >= 2,
+        "all_prefs_submitted": len(prefs) >= len(participants) and len(prefs) > 0,
+        "has_dates_locked": trip.get("locked_dates") is not None,
+        "has_votes": len(votes) > 0,
+        "has_budget_items": len(budget_items) > 0,
+        "has_destination": trip.get("status") in ["booked", "completed"] or len(votes) > 0,
+    }
+    readiness_pct = round(sum(checks.values()) / max(len(checks), 1) * 100)
+
+    # Determine current phase
+    if trip.get("status") in ["booked", "completed"]:
+        phase = "booked"
+    elif trip.get("locked_dates"):
+        phase = "dates_locked"
+    elif len(votes) > 0:
+        phase = "voting"
+    elif len(prefs) > 0:
+        phase = "preferences"
+    else:
+        phase = "setup"
+
+    # Next action
+    if not checks["has_participants"]:
+        next_action = "Invite friends to join the trip"
+    elif not checks["all_prefs_submitted"]:
+        next_action = f"{len(participants) - len(prefs)} participants haven't submitted preferences yet"
+    elif not checks["has_dates_locked"]:
+        next_action = "Check availability and lock travel dates"
+    elif not checks["has_votes"]:
+        next_action = "Vote on destinations"
+    elif not checks["has_budget_items"]:
+        next_action = "Start tracking your budget"
+    else:
+        next_action = "Trip is ready! Time to book."
+
+    # Get winning destination if voted
+    winning_dest = None
+    if votes:
+        tally = {}
+        for v in votes:
+            tally[v.get("destination_id", "")] = tally.get(v.get("destination_id", ""), 0) + v.get("score", 0)
+        if tally:
+            winner_id = max(tally, key=tally.get)
+            winner_doc = await db.destinations.find_one({"id": winner_id}, {"_id": 0, "id": 1, "name": 1, "image": 1, "country": 1})
+            if winner_doc:
+                winning_dest = winner_doc
+
+    trip["readiness"] = {
+        "score": readiness_pct,
+        "checks": checks,
+        "phase": phase,
+        "next_action": next_action,
+        "prefs_count": len(prefs),
+        "votes_count": len(votes),
+        "budget_items_count": len(budget_items),
+        "winning_destination": winning_dest
+    }
     return trip
 
 @api_router.post("/trips/join/{invite_code}")
