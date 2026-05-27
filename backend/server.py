@@ -1413,6 +1413,123 @@ async def get_email_log(user=Depends(get_current_user)):
     """Debug endpoint to see all mock emails sent"""
     return {"emails": email_log[-50:], "total": len(email_log)}
 
+# ---- TRIP BUDGET TRACKER ----
+class BudgetItemInput(BaseModel):
+    category: str  # flight, hotel, activity, food, transport, custom
+    name: str
+    amount: float
+    per_person: bool = True
+    notes: str = ""
+
+@api_router.get("/trips/{trip_id}/budget")
+async def get_budget(trip_id: str, user=Depends(get_current_user)):
+    trip = await db.trips.find_one({"_id": ObjectId(trip_id)})
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found")
+    items = await db.budget_items.find({"trip_id": trip_id}, {"_id": 1, "trip_id": 0}).to_list(200)
+    for item in items:
+        item["id"] = str(item.pop("_id"))
+
+    participants = trip.get("participants", [])
+    group_size = len(participants) or 1
+    target_budget = trip.get("per_person_budget", 500) * group_size
+    per_person_target = trip.get("per_person_budget", 500)
+    currency = trip.get("currency", "EUR")
+
+    # Compute totals
+    total_group = 0
+    total_per_person = 0
+    by_category = {}
+    for item in items:
+        amt = item.get("amount", 0)
+        if item.get("per_person"):
+            total_per_person += amt
+            total_group += amt * group_size
+        else:
+            total_group += amt
+            total_per_person += amt / group_size
+        cat = item.get("category", "custom")
+        by_category[cat] = by_category.get(cat, 0) + (amt if item.get("per_person") else amt / group_size)
+
+    return {
+        "items": items,
+        "summary": {
+            "total_per_person": round(total_per_person, 2),
+            "total_group": round(total_group, 2),
+            "target_per_person": per_person_target,
+            "target_group": target_budget,
+            "remaining_per_person": round(per_person_target - total_per_person, 2),
+            "remaining_group": round(target_budget - total_group, 2),
+            "pct_used": round((total_per_person / max(per_person_target, 1)) * 100),
+            "group_size": group_size,
+            "currency": currency,
+            "by_category": by_category
+        }
+    }
+
+@api_router.post("/trips/{trip_id}/budget")
+async def add_budget_item(trip_id: str, input: BudgetItemInput, user=Depends(get_current_user)):
+    trip = await db.trips.find_one({"_id": ObjectId(trip_id)})
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found")
+    doc = {
+        "trip_id": trip_id,
+        "category": input.category,
+        "name": input.name,
+        "amount": input.amount,
+        "per_person": input.per_person,
+        "notes": input.notes,
+        "added_by": user.get("name", ""),
+        "added_by_id": user["_id"],
+        "added_at": datetime.now(timezone.utc).isoformat()
+    }
+    result = await db.budget_items.insert_one(doc)
+    doc["id"] = str(result.inserted_id)
+    doc.pop("_id", None)
+    await notify_trip(trip_id, "budget_item_added", {"item_name": input.name, "amount": input.amount, "user_name": user.get("name", "")})
+    return doc
+
+@api_router.delete("/trips/{trip_id}/budget/{item_id}")
+async def delete_budget_item(trip_id: str, item_id: str, user=Depends(get_current_user)):
+    result = await db.budget_items.delete_one({"_id": ObjectId(item_id), "trip_id": trip_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return {"message": "Deleted"}
+
+@api_router.get("/trips/{trip_id}/budget/suggestions")
+async def get_budget_suggestions(trip_id: str, user=Depends(get_current_user)):
+    """Return pre-populated expense options from destination data"""
+    trip = await db.trips.find_one({"_id": ObjectId(trip_id)})
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found")
+    # Get voted/recommended destinations
+    dests = await db.destinations.find({}, {"_id": 0}).to_list(50)
+    suggestions = []
+    for d in dests[:5]:
+        dest_suggestions = {"destination": d["name"], "items": []}
+        for acc in d.get("accommodations", []):
+            dest_suggestions["items"].append({
+                "category": "hotel", "name": f"{acc['name']} ({d['name']})",
+                "amount": acc.get("price_night", 80), "per_person": False,
+                "notes": f"Rating: {acc.get('rating', 'N/A')}", "link": acc.get("link", "")
+            })
+        for act in d.get("activities", []):
+            dest_suggestions["items"].append({
+                "category": "activity", "name": f"{act['name']}",
+                "amount": act.get("price", 0), "per_person": True,
+                "notes": f"{act.get('duration', '')} · {act.get('type', '')}"
+            })
+        for tf_city, modes in d.get("transport_from", {}).items():
+            for mode, details in modes.items():
+                dest_suggestions["items"].append({
+                    "category": "flight" if mode == "plane" else "transport",
+                    "name": f"{mode.title()} from {tf_city} to {d['name']}",
+                    "amount": details.get("price", 0), "per_person": True,
+                    "notes": details.get("duration", ""), "link": details.get("link", "")
+                })
+        suggestions.append(dest_suggestions)
+    return {"suggestions": suggestions}
+
 # ---- SLOT PRICE COMPARISON ----
 def get_slot_price(dest: dict, departure_city: str, start_date: str, end_date: str, num_travelers: int = 1) -> dict:
     """Generate simulated but realistic prices for a specific date slot"""

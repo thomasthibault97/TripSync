@@ -111,8 +111,8 @@ export default function Voting() {
                         <div className="text-sm text-[#5C605E]">{rec.country} · {rec.avg_budget_per_person} {rec.currency}/pp · Score: {rec.match_score?.overall}</div>
                         {tally.voters.length > 0 && (
                           <div className="flex items-center gap-2 mt-1 text-xs text-[#5C605E]">
-                            {tally.voters.map((v, j) => (
-                              <span key={j} className={`px-2 py-0.5 rounded-full ${v.score > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            {tally.voters.map((v) => (
+                              <span key={v.user_name} className={`px-2 py-0.5 rounded-full ${v.score > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                                 {v.user_name}: {v.score > 0 ? '+1' : '-1'}
                               </span>
                             ))}
@@ -153,8 +153,8 @@ export default function Voting() {
                 {comments.length === 0 ? (
                   <p className="text-sm text-[#5C605E] text-center py-4">No comments yet. Start the discussion!</p>
                 ) : (
-                  comments.map((c, i) => (
-                    <div key={i} className="p-3 bg-[#F7F6F2] rounded-xl">
+                  comments.map((c) => (
+                    <div key={c.id || c.created_at} className="p-3 bg-[#F7F6F2] rounded-xl">
                       <div className="flex items-center gap-2 mb-1">
                         <div className="w-6 h-6 rounded-full bg-[#2C4234]/10 flex items-center justify-center text-[#2C4234] text-xs font-medium">
                           {c.user_name?.charAt(0)?.toUpperCase()}

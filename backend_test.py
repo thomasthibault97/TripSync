@@ -481,10 +481,118 @@ class TripSyncAPITester:
             200
         )
         if success:
-            slots = response.get('slots', [])
-            print(f"   Found {len(slots)} price slots")
-            for slot in slots[:3]:  # Show first 3
-                print(f"     - {slot.get('date_range')}: {slot.get('flight_price')}€ flight, {slot.get('hotel_price')}€ hotel")
+            comparisons = response.get('comparisons', [])
+            print(f"   Found {len(comparisons)} destination comparisons")
+            for comp in comparisons[:2]:  # Show first 2
+                dest = comp.get('destination', {})
+                slots = comp.get('slots', [])
+                print(f"     - {dest.get('name')}: {len(slots)} time slots")
+        
+        return success, response
+
+    def test_get_budget(self):
+        """Test getting trip budget"""
+        if not self.trip_id:
+            return False, {}
+        
+        success, response = self.run_test(
+            "Get Trip Budget",
+            "GET",
+            f"trips/{self.trip_id}/budget",
+            200
+        )
+        if success:
+            summary = response.get('summary', {})
+            items = response.get('items', [])
+            print(f"   Budget items: {len(items)}")
+            print(f"   Total per person: {summary.get('total_per_person')} {summary.get('currency')}")
+            print(f"   Target per person: {summary.get('target_per_person')} {summary.get('currency')}")
+            print(f"   Percentage used: {summary.get('pct_used')}%")
+        
+        return success, response
+
+    def test_add_budget_item(self):
+        """Test adding a budget item"""
+        if not self.trip_id:
+            return False, {}
+        
+        budget_item = {
+            "category": "flight",
+            "name": "Test flight expense",
+            "amount": 150,
+            "per_person": True,
+            "notes": "Test flight from backend test"
+        }
+        
+        success, response = self.run_test(
+            "Add Budget Item",
+            "POST",
+            f"trips/{self.trip_id}/budget",
+            200,
+            data=budget_item
+        )
+        if success:
+            print(f"   Budget item added: {response.get('name')}")
+            print(f"   Amount: {response.get('amount')} {response.get('currency')}")
+            self.test_budget_item_id = response.get('id')
+        
+        return success, response
+
+    def test_get_budget_suggestions(self):
+        """Test getting budget suggestions from destinations"""
+        if not self.trip_id:
+            return False, {}
+        
+        success, response = self.run_test(
+            "Get Budget Suggestions",
+            "GET",
+            f"trips/{self.trip_id}/budget/suggestions",
+            200
+        )
+        if success:
+            suggestions = response.get('suggestions', [])
+            print(f"   Found {len(suggestions)} destination suggestions")
+            for sugg in suggestions[:2]:  # Show first 2
+                dest = sugg.get('destination')
+                items = sugg.get('items', [])
+                print(f"     - {dest}: {len(items)} suggested items")
+        
+        return success, response
+
+    def test_delete_budget_item(self):
+        """Test deleting a budget item"""
+        if not self.trip_id or not hasattr(self, 'test_budget_item_id'):
+            return False, {}
+        
+        success, response = self.run_test(
+            "Delete Budget Item",
+            "DELETE",
+            f"trips/{self.trip_id}/budget/{self.test_budget_item_id}",
+            200
+        )
+        if success:
+            print(f"   Budget item deleted successfully")
+        
+        return success, response
+
+    def test_flight_coordination(self):
+        """Test flight coordination API"""
+        if not self.trip_id:
+            return False, {}
+        
+        success, response = self.run_test(
+            "Get Flight Coordination",
+            "GET",
+            f"trips/{self.trip_id}/flight-coordination",
+            200
+        )
+        if success:
+            coordination = response.get('coordination', [])
+            message = response.get('message')
+            if message:
+                print(f"   Message: {message}")
+            else:
+                print(f"   Found {len(coordination)} destination flight coordinations")
         
         return success, response
 
@@ -549,12 +657,44 @@ def main():
 
     # Test NEW FEATURES from review request:
 
-    # 1. Test slot price comparison API
+    # 1. Test Budget Tracker APIs
+    print("\n📊 Testing Budget Tracker APIs...")
+    success, budget_data = tester.test_get_budget()
+    if not success:
+        print("❌ Failed to get budget")
+
+    success, budget_suggestions = tester.test_get_budget_suggestions()
+    if not success:
+        print("❌ Failed to get budget suggestions")
+
+    success, budget_item = tester.test_add_budget_item()
+    if not success:
+        print("❌ Failed to add budget item")
+
+    # Get budget again to verify item was added
+    success, budget_after_add = tester.test_get_budget()
+    if success:
+        items_count = len(budget_after_add.get('items', []))
+        print(f"✅ Budget now has {items_count} items")
+
+    # Delete the test budget item
+    success, delete_result = tester.test_delete_budget_item()
+    if not success:
+        print("❌ Failed to delete budget item")
+
+    # 2. Test slot price comparison API
+    print("\n💰 Testing Slot Price Comparison API...")
     success, slot_prices = tester.test_slot_prices()
     if not success:
         print("❌ Failed to get slot prices")
 
-    # 2. Test email log API (mock emails)
+    # 3. Test flight coordination API
+    print("\n✈️ Testing Flight Coordination API...")
+    success, flight_coord = tester.test_flight_coordination()
+    if not success:
+        print("❌ Failed to get flight coordination")
+
+    # 4. Test email log API (mock emails)
     success, email_log = tester.test_email_log()
     if not success:
         print("❌ Failed to get email log")

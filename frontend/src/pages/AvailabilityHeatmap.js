@@ -1,10 +1,13 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { Globe, ArrowLeft, Users, Calendar, ChevronLeft, ChevronRight, Award, Check, X, Crown, Sparkles, Plane, Lock, Unlock, Share2, Copy, Link2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Globe, ArrowLeft, Calendar, ChevronLeft, ChevronRight, Check, X, Sparkles, Lock, Unlock, Share2, Copy, Link2, Users } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { toast } from 'sonner';
+import HeatmapTooltip from '@/components/heatmap/HeatmapTooltip';
+import BestPeriodsSection from '@/components/heatmap/BestPeriodsSection';
+import { MostProbableRanges, ParticipantRangesSidebar, BestWeekendsSidebar } from '@/components/heatmap/HeatmapSidebar';
 
 const MONTH_NAMES_FULL = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DAY_LABELS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
@@ -258,68 +261,7 @@ export default function AvailabilityHeatmap() {
           </div>
         </motion.div>
 
-        {/* Best Periods - Doodle highlight */}
-        {bestPeriods.length > 0 && (
-          <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="mb-8" data-testid="best-periods-section">
-            <h2 className="font-['Outfit'] text-lg font-bold text-[#1C1E1D] mb-4 flex items-center gap-2">
-              <Crown className="w-5 h-5 text-[#D96A53]" /> Best Periods for Your Group
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {bestPeriods.map((bp, i) => {
-                const startD = new Date(bp.start);
-                const endD = new Date(bp.end);
-                const startLabel = startD.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-                const endLabel = endD.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-                return (
-                  <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-                    className={`rounded-2xl border-2 p-5 transition-all ${
-                      i === 0 ? 'bg-emerald-50 border-emerald-300 shadow-sm' : 'bg-white border-[#E5E4DE]'
-                    }`}
-                    data-testid={`best-period-${i}`}>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        {i === 0 && <span className="bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">TOP PICK</span>}
-                        {i > 0 && <span className="bg-[#E5E4DE] text-[#5C605E] text-[10px] font-bold px-2 py-0.5 rounded-full">#{i + 1}</span>}
-                      </div>
-                      <span className={`text-lg font-['Outfit'] font-bold ${i === 0 ? 'text-emerald-600' : 'text-[#1C1E1D]'}`}>{bp.score}%</span>
-                    </div>
-                    <h3 className="font-['Outfit'] font-bold text-[#1C1E1D] text-base mb-1">{startLabel} — {endLabel}</h3>
-                    <div className="text-xs text-[#5C605E] space-y-1 mt-2">
-                      <div>{bp.days} days · {bp.all_available_days} days with everyone free</div>
-                      <div>Avg. {bp.avg_available}/{totalWithPrefs} participants available</div>
-                    </div>
-                    {/* Show who's missing on partial days */}
-                    {bp.all_available_days < bp.days && (() => {
-                      const missingNames = new Set();
-                      bp.dates?.forEach(d => {
-                        const cell = heatmap[d];
-                        cell?.unavailable?.forEach(n => missingNames.add(n));
-                      });
-                      return missingNames.size > 0 ? (
-                        <div className="text-[10px] mt-2 flex items-center gap-1 text-amber-600">
-                          <X className="w-3 h-3 shrink-0" />
-                          <span>Missing on some days: {[...missingNames].join(', ')}</span>
-                        </div>
-                      ) : null;
-                    })()}
-                    {/* Mini visual: colored dots per date */}
-                    <div className="flex gap-1 mt-3">
-                      {bp.dates?.map((d, di) => {
-                        const cell = heatmap[d];
-                        const count = cell?.count || 0;
-                        const isAll = count === totalWithPrefs;
-                        return (
-                          <div key={di} className={`flex-1 h-3 rounded-full ${isAll ? 'bg-emerald-500' : 'bg-amber-400'}`}
-                            title={`${d}: ${count}/${totalWithPrefs}`} />
-                        );
-                      })}
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </motion.div>
-        )}
+        <BestPeriodsSection bestPeriods={bestPeriods} heatmap={heatmap} totalWithPrefs={totalWithPrefs} />
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Main Calendar + Doodle Grid */}
@@ -500,185 +442,15 @@ export default function AvailabilityHeatmap() {
 
           {/* Sidebar */}
           <div className="space-y-6">
-            {/* Most Probable Travel Dates */}
-            {mostProbableRanges.length > 0 && (
-              <div className="bg-white rounded-2xl border-2 border-emerald-300 p-5 shadow-sm" data-testid="most-probable-ranges">
-                <h3 className="font-['Outfit'] font-bold text-[#1C1E1D] mb-1 flex items-center gap-2 text-sm">
-                  <Plane className="w-4 h-4 text-emerald-600" /> Most Probable Travel Dates
-                </h3>
-                <p className="text-[10px] text-[#5C605E] mb-4">Best overlapping schedules from everyone</p>
-                <div className="space-y-3">
-                  {mostProbableRanges.slice(0, 5).map((r, i) => {
-                    const startLabel = new Date(r.start + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-                    const endLabel = new Date(r.end + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-                    return (
-                      <motion.div key={i} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-                        className={`p-3.5 rounded-xl border transition-all ${
-                          i === 0 ? 'border-emerald-300 bg-emerald-50' : 'border-[#E5E4DE] bg-[#F7F6F2]'
-                        }`} data-testid={`probable-range-${i}`}>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <div className="flex items-center gap-1.5">
-                            {i === 0 && <span className="bg-emerald-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">TOP PICK</span>}
-                            {i > 0 && <span className="bg-[#E5E4DE] text-[#5C605E] text-[9px] font-bold px-1.5 py-0.5 rounded-full">#{i + 1}</span>}
-                          </div>
-                          <span className={`text-base font-['Outfit'] font-bold ${i === 0 ? 'text-emerald-600' : 'text-[#1C1E1D]'}`}>
-                            {r.score}%
-                          </span>
-                        </div>
-                        <div className="text-sm font-bold text-[#1C1E1D] mb-1">{startLabel} &rarr; {endLabel}</div>
-                        <div className="text-[10px] text-[#5C605E] space-y-0.5">
-                          <div>{r.days} days</div>
-                          <div>{r.full_overlap_count}/{totalWithPrefs} fully available</div>
-                        </div>
-                        {/* Progress bar */}
-                        <div className="flex items-center gap-2 mt-2">
-                          <div className="flex-1 h-1.5 rounded-full bg-[#E5E4DE] overflow-hidden">
-                            <div className={`h-full rounded-full ${r.score >= 80 ? 'bg-emerald-500' : r.score >= 50 ? 'bg-amber-500' : 'bg-red-400'}`}
-                              style={{ width: `${r.score}%` }} />
-                          </div>
-                        </div>
-                        {/* Who's in */}
-                        {r.full_overlap_users?.length > 0 && (
-                          <div className="mt-2 flex items-center gap-1 flex-wrap">
-                            {r.full_overlap_users.map((name, ni) => (
-                              <span key={ni} className="inline-flex items-center gap-0.5 text-[9px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">
-                                <Check className="w-2.5 h-2.5" />{name}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        {r.partial_overlap_users?.length > 0 && (
-                          <div className="mt-1 text-[9px] text-amber-600">
-                            Partial: {r.partial_overlap_users.join(', ')}
-                          </div>
-                        )}
-                        {/* Lock button - owner only, when not already locked */}
-                        {isOwner && !lockedDates && (
-                          <button onClick={() => handleLockDates(r.start, r.end)} disabled={locking}
-                            className="mt-2.5 w-full flex items-center justify-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 rounded-lg py-1.5 transition-colors"
-                            data-testid={`lock-range-${i}`}>
-                            <Lock className="w-3 h-3" /> {locking ? 'Locking...' : 'Lock these dates'}
-                          </button>
-                        )}
-                      </motion.div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Participants with their ranges */}
-            <div className="bg-white rounded-2xl border border-[#E5E4DE] p-5">
-              <h3 className="font-['Outfit'] font-bold text-[#1C1E1D] mb-4 flex items-center gap-2 text-sm">
-                <Users className="w-4 h-4 text-[#2C4234]" /> Participants & Ranges
-              </h3>
-              <div className="space-y-3">
-                {participantGrid.map((p, i) => (
-                  <div key={i} className="py-2">
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-7 h-7 rounded-full bg-[#2C4234]/10 flex items-center justify-center text-[#2C4234] text-[10px] font-bold shrink-0">
-                        {p.name.charAt(0).toUpperCase()}
-                      </div>
-                      <span className="text-sm text-[#1C1E1D] font-medium truncate">{p.name}</span>
-                      {p.pending ? (
-                        <span className="text-[9px] text-amber-500 ml-auto bg-amber-50 px-1.5 py-0.5 rounded">Pending</span>
-                      ) : (
-                        <Check className="w-3.5 h-3.5 text-green-500 ml-auto shrink-0" />
-                      )}
-                    </div>
-                    {/* Show ranges if any */}
-                    {p.ranges && p.ranges.length > 0 && (
-                      <div className="ml-9 space-y-1">
-                        {p.ranges.map((r, ri) => {
-                          const sLabel = new Date(r.start + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                          const eLabel = new Date(r.end + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                          return (
-                            <div key={ri} className="text-[10px] text-[#5C605E] flex items-center gap-1">
-                              <Plane className="w-3 h-3 text-[#2C4234]" />
-                              <span>{sLabel} &rarr; {eLabel}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Best Weekends */}
-            {data?.best_weekends?.length > 0 && (
-              <div className="bg-white rounded-2xl border border-[#E5E4DE] p-5">
-                <h3 className="font-['Outfit'] font-bold text-[#1C1E1D] mb-4 flex items-center gap-2 text-sm">
-                  <Award className="w-4 h-4 text-[#D96A53]" /> Best Weekends
-                </h3>
-                <div className="space-y-3">
-                  {data.best_weekends.slice(0, 5).map((wk, i) => {
-                    const friLabel = new Date(wk.friday).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                    const sunLabel = new Date(wk.sunday).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                    return (
-                      <div key={i} className={`p-3 rounded-xl border transition-all ${
-                        i === 0 ? 'border-emerald-200 bg-emerald-50' : 'border-[#E5E4DE] bg-[#F7F6F2]'
-                      }`} data-testid={`best-weekend-${i}`}>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-sm font-bold text-[#1C1E1D]">{friLabel} – {sunLabel}</span>
-                          {i === 0 && <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">Best</span>}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-1.5 rounded-full bg-[#E5E4DE] overflow-hidden">
-                            <div className={`h-full rounded-full ${wk.score >= 80 ? 'bg-emerald-500' : wk.score >= 50 ? 'bg-amber-500' : 'bg-red-400'}`}
-                              style={{ width: `${wk.score}%` }} />
-                          </div>
-                          <span className="text-xs font-bold text-[#1C1E1D] w-10 text-right">{wk.score}%</span>
-                        </div>
-                        <div className="text-[10px] text-[#5C605E] mt-1">
-                          {wk.min_available} available all 3 days
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+            <MostProbableRanges ranges={mostProbableRanges} totalWithPrefs={totalWithPrefs}
+              isOwner={isOwner} lockedDates={lockedDates} locking={locking} onLock={handleLockDates} />
+            <ParticipantRangesSidebar participantGrid={participantGrid} />
+            <BestWeekendsSidebar weekends={data?.best_weekends} />
           </div>
         </div>
 
         {/* Tooltip */}
-        <AnimatePresence>
-          {hoveredDate && heatmap[hoveredDate] && (
-            <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-              className="fixed z-50 pointer-events-none"
-              style={{ left: tooltipPos.x, top: tooltipPos.y, transform: 'translate(-50%, -100%)' }}>
-              <div className="bg-[#1C1E1D] text-white rounded-xl px-4 py-3 shadow-xl text-xs min-w-[200px]">
-                <div className="font-bold mb-1.5">
-                  {new Date(hoveredDate).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
-                </div>
-                <div className="mb-2 font-medium text-sm">
-                  {heatmap[hoveredDate].count}/{heatmap[hoveredDate].total_with_prefs} available
-                </div>
-                {heatmap[hoveredDate].available?.length > 0 && (
-                  <div className="mb-1 flex items-start gap-1.5">
-                    <Check className="w-3 h-3 text-emerald-400 mt-0.5 shrink-0" />
-                    <span><span className="text-emerald-400 font-medium">Available: </span>{heatmap[hoveredDate].available.join(', ')}</span>
-                  </div>
-                )}
-                {heatmap[hoveredDate].unavailable?.length > 0 && (
-                  <div className="mb-1 flex items-start gap-1.5">
-                    <X className="w-3 h-3 text-red-400 mt-0.5 shrink-0" />
-                    <span><span className="text-red-400 font-medium">Unavailable: </span>{heatmap[hoveredDate].unavailable.join(', ')}</span>
-                  </div>
-                )}
-                {isInBestPeriod(hoveredDate) && (
-                  <div className="mt-1.5 pt-1.5 border-t border-white/20 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-emerald-400" />
-                    <span className="text-emerald-400 font-medium">Part of best period</span>
-                  </div>
-                )}
-                <div className="absolute left-1/2 bottom-0 -translate-x-1/2 translate-y-full w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-[#1C1E1D]" />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <HeatmapTooltip hoveredDate={hoveredDate} heatmap={heatmap} tooltipPos={tooltipPos} isInBestPeriod={isInBestPeriod} />
       </div>
     </div>
   );

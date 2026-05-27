@@ -23,6 +23,9 @@ import DealFinder from "@/pages/DealFinder";
 import AvailabilityHeatmap from "@/pages/AvailabilityHeatmap";
 import GroupPolls from "@/pages/GroupPolls";
 import GuestAvailability from "@/pages/GuestAvailability";
+import BudgetTracker from "@/pages/BudgetTracker";
+import SlotPriceComparison from "@/pages/SlotPriceComparison";
+import FlightCoordination from "@/pages/FlightCoordination";
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -65,6 +68,9 @@ function AppRouter() {
       <Route path="/trip/:tripId/deals" element={<ProtectedRoute><DealFinder /></ProtectedRoute>} />
       <Route path="/trip/:tripId/availability" element={<ProtectedRoute><AvailabilityHeatmap /></ProtectedRoute>} />
       <Route path="/trip/:tripId/polls" element={<ProtectedRoute><GroupPolls /></ProtectedRoute>} />
+      <Route path="/trip/:tripId/budget" element={<ProtectedRoute><BudgetTracker /></ProtectedRoute>} />
+      <Route path="/trip/:tripId/slot-prices" element={<ProtectedRoute><SlotPriceComparison /></ProtectedRoute>} />
+      <Route path="/trip/:tripId/flights" element={<ProtectedRoute><FlightCoordination /></ProtectedRoute>} />
       <Route path="/templates" element={<ProtectedRoute><TripTemplates /></ProtectedRoute>} />
       <Route path="/admin" element={<ProtectedRoute><AdminPanel /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />

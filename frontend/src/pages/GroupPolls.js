@@ -301,8 +301,8 @@ export default function GroupPolls() {
                 <div>
                   <Label className="text-xs text-[#5C605E] font-medium mb-2 block">Quick start</Label>
                   <div className="flex flex-wrap gap-2">
-                    {QUICK_POLLS.map((qp, i) => (
-                      <button key={i} onClick={() => applyQuickPoll(qp)}
+                    {QUICK_POLLS.map((qp) => (
+                      <button key={qp.q} onClick={() => applyQuickPoll(qp)}
                         className="text-xs bg-[#2C4234]/5 text-[#2C4234] px-3 py-1.5 rounded-full hover:bg-[#2C4234]/10 transition-colors font-medium"
                         data-testid={`quick-poll-${i}`}>
                         {qp.q}

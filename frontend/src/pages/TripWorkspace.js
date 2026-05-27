@@ -7,6 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { Globe, Users, Calendar, Wallet, ArrowRight, Copy, Check, MapPin, Sparkles, MessageSquare, Vote, ClipboardList, ChevronRight, CreditCard, Zap, Sun, TrendingDown, CalendarDays, BarChart3 } from 'lucide-react';
 import NotificationCenter from '@/components/NotificationCenter';
 import AiChatbot from '@/components/AiChatbot';
+import BudgetWidget from '@/components/BudgetWidget';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 
@@ -166,8 +167,8 @@ export default function TripWorkspace() {
               <h3 className="font-['Outfit'] font-medium text-[#1C1E1D] mb-4">Group Progress</h3>
               <Progress value={completionPct} className="h-2 mb-4" />
               <div className="space-y-3">
-                {participants.map((p, i) => (
-                  <div key={i} className="flex items-center justify-between py-2 border-b border-[#E5E4DE] last:border-0">
+                {participants.map((p) => (
+                  <div key={p.user_id || p.name} className="flex items-center justify-between py-2 border-b border-[#E5E4DE] last:border-0">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-[#2C4234]/10 flex items-center justify-center text-[#2C4234] text-xs font-medium">
                         {p.name?.charAt(0)?.toUpperCase() || '?'}
@@ -251,6 +252,22 @@ export default function TripWorkspace() {
                   <CreditCard className="w-6 h-6 mb-3" />
                   <h4 className="font-['Outfit'] font-medium mb-1">Cost Splitter & Pay</h4>
                   <p className="text-white/70 text-sm">Split costs and collect payments</p>
+                  <ArrowRight className="w-5 h-5 mt-3 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </Link>
+              <Link to={`/trip/${tripId}/budget`} data-testid="budget-tracker-link">
+                <div className="bg-white rounded-2xl p-6 border border-[#E5E4DE] hover:-translate-y-0.5 hover:shadow-sm transition-all duration-200 cursor-pointer group">
+                  <Wallet className="w-6 h-6 mb-3 text-[#E07A5F]" />
+                  <h4 className="font-['Outfit'] font-medium text-[#1C1E1D] mb-1">Budget Tracker</h4>
+                  <p className="text-[#5C605E] text-sm">Track expenses vs budget in real-time</p>
+                  <ArrowRight className="w-5 h-5 mt-3 text-[#5C605E] group-hover:translate-x-1 transition-transform" />
+                </div>
+              </Link>
+              <Link to={`/trip/${tripId}/slot-prices`} data-testid="slot-prices-link">
+                <div className="bg-gradient-to-br from-sky-500 to-blue-600 rounded-2xl p-6 text-white hover:from-sky-600 hover:to-blue-700 transition-all duration-200 cursor-pointer group">
+                  <Calendar className="w-6 h-6 mb-3" />
+                  <h4 className="font-['Outfit'] font-medium mb-1">Price per Slot</h4>
+                  <p className="text-white/70 text-sm">Compare flight + hotel per date range</p>
                   <ArrowRight className="w-5 h-5 mt-3 group-hover:translate-x-1 transition-transform" />
                 </div>
               </Link>
@@ -346,6 +363,8 @@ export default function TripWorkspace() {
       </div>
       {/* AI Chatbot FAB */}
       <AiChatbot tripId={tripId} />
+      {/* Budget Widget */}
+      <BudgetWidget tripId={tripId} />
     </div>
   );
 }
