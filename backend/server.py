@@ -304,6 +304,7 @@ class PaymentStatusInput(BaseModel):
 # ---- TRIP ROUTES ----
 @api_router.post("/trips")
 async def create_trip(input: TripCreate, user=Depends(get_current_user)):
+    await enforce_trip_limit(user["_id"])
     invite_code = secrets.token_urlsafe(8)
     trip_doc = {
         "name": input.name, "trip_type": input.trip_type,
@@ -413,6 +414,7 @@ async def join_trip(invite_code: str, user=Depends(get_current_user)):
     if existing:
         trip["id"] = str(trip.pop("_id"))
         return trip
+    await enforce_participant_limit(str(trip["_id"]))
     await db.trips.update_one({"_id": trip["_id"]}, {"$push": {"participants": {"user_id": user["_id"], "name": user.get("name", ""), "status": "joined", "preferences_submitted": False}}})
     trip = await db.trips.find_one({"_id": trip["_id"]})
     trip_id_str = str(trip["_id"])
@@ -1454,13 +1456,74 @@ PLANS = {
 async def get_plans():
     return {"plans": PLANS}
 
+async def get_user_plan(user_id: str) -> dict:
+    """Get the active plan limits for a user"""
+    sub = await db.subscriptions.find_one({"user_id": user_id, "status": "active"}, {"_id": 0})
+    plan_id = sub.get("plan", "free") if sub else "free"
+    return {**PLANS.get(plan_id, PLANS["free"]), "plan_id": plan_id, "subscription": sub}
+
+async def enforce_trip_limit(user_id: str):
+    """Raise 403 if user has hit their trip creation limit"""
+    plan = await get_user_plan(user_id)
+    max_trips = plan.get("trips", 5)
+    if max_trips == -1:
+        return  # unlimited
+    trip_count = await db.trips.count_documents({"owner_id": user_id})
+    if trip_count >= max_trips:
+        raise HTTPException(status_code=403, detail=f"Trip limit reached ({max_trips} trips on {plan['name']} plan). Upgrade at /pricing to create more.")
+
+async def enforce_participant_limit(trip_id: str):
+    """Raise 403 if trip has hit the owner's participant limit"""
+    trip = await db.trips.find_one({"_id": ObjectId(trip_id)}, {"owner_id": 1, "participants": 1})
+    if not trip:
+        return
+    plan = await get_user_plan(trip["owner_id"])
+    max_pax = plan.get("participants", 6)
+    if max_pax == -1:
+        return  # unlimited
+    current = len(trip.get("participants", []))
+    if current >= max_pax:
+        raise HTTPException(status_code=403, detail=f"Participant limit reached ({max_pax} on {plan['name']} plan). Ask the trip owner to upgrade.")
+
+async def enforce_feature(user_id: str, feature: str):
+    """Raise 403 if a premium feature is not available on user's plan"""
+    plan = await get_user_plan(user_id)
+    if not plan.get(feature, False):
+        raise HTTPException(status_code=403, detail=f"This feature requires an upgrade. Available on Voyager or Odyssey plans.")
+
 @api_router.get("/subscription/status")
 async def get_subscription_status(user=Depends(get_current_user)):
     sub = await db.subscriptions.find_one({"user_id": user["_id"], "status": "active"}, {"_id": 0})
     if sub:
         plan_id = sub.get("plan", "free")
-        return {"plan": plan_id, "status": "active", "billing": sub.get("billing", "monthly"), "details": PLANS.get(plan_id, PLANS["free"]), "subscription": sub}
-    return {"plan": "free", "status": "active", "billing": "monthly", "details": PLANS["free"], "subscription": None}
+        plan_details = PLANS.get(plan_id, PLANS["free"])
+        # Count usage
+        trip_count = await db.trips.count_documents({"owner_id": user["_id"]})
+        return {"plan": plan_id, "status": "active", "billing": sub.get("billing", "monthly"), "details": plan_details, "subscription": sub, "usage": {"trips_created": trip_count, "trips_limit": plan_details["trips"]}}
+    trip_count = await db.trips.count_documents({"owner_id": user["_id"]})
+    return {"plan": "free", "status": "active", "billing": "monthly", "details": PLANS["free"], "subscription": None, "usage": {"trips_created": trip_count, "trips_limit": PLANS["free"]["trips"]}}
+
+@api_router.post("/subscription/cancel")
+async def cancel_subscription(user=Depends(get_current_user)):
+    sub = await db.subscriptions.find_one({"user_id": user["_id"], "status": "active"})
+    if not sub:
+        raise HTTPException(status_code=400, detail="No active subscription to cancel")
+    await db.subscriptions.update_one(
+        {"_id": sub["_id"]},
+        {"$set": {"status": "cancelled", "cancelled_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    # Send cancellation email
+    user_doc = await db.users.find_one({"_id": user["_id"]}, {"email": 1})
+    if user_doc and user_doc.get("email"):
+        plan_name = PLANS.get(sub.get("plan", ""), {}).get("name", "")
+        await send_mock_email(
+            user_doc["email"],
+            f"TripSync {plan_name} subscription cancelled",
+            f"Hi!\n\nYour TripSync {plan_name} subscription has been cancelled.\n"
+            f"You'll keep access to premium features until the end of your current billing cycle.\n"
+            f"You can re-subscribe anytime at /pricing.\n\n— TripSync Team"
+        )
+    return {"message": "Subscription cancelled. You keep access until billing cycle ends."}
 
 @api_router.post("/subscription/checkout")
 async def create_subscription_checkout(request: Request, user=Depends(get_current_user)):
@@ -1586,7 +1649,8 @@ async def track_pricing_event(request: Request):
 
 @api_router.get("/analytics/pricing-stats")
 async def get_pricing_stats(user=Depends(get_current_user)):
-    """Get A/B test stats for admin"""
+    """Get A/B test stats for admin dashboard"""
+    # Aggregate by variant and event type
     pipeline = [
         {"$group": {
             "_id": {"variant": "$variant", "event_type": "$event_type"},
@@ -1601,12 +1665,43 @@ async def get_pricing_stats(user=Depends(get_current_user)):
         if v not in stats:
             stats[v] = {}
         stats[v][r["_id"]["event_type"]] = r["count"]
-    # Compute conversion rates
     for v in stats:
         views = stats[v].get("page_view", 1)
         clicks = stats[v].get("subscribe_click", 0)
+        plan_clicks = stats[v].get("plan_click", 0)
         stats[v]["conversion_rate"] = round((clicks / max(views, 1)) * 100, 1)
-    return {"stats": stats}
+        stats[v]["engagement_rate"] = round((plan_clicks / max(views, 1)) * 100, 1)
+
+    # Billing preference breakdown
+    billing_pipeline = [
+        {"$match": {"event_type": "billing_toggle"}},
+        {"$group": {"_id": "$billing", "count": {"$sum": 1}}}
+    ]
+    billing_results = await db.pricing_analytics.aggregate(billing_pipeline).to_list(10)
+    billing_prefs = {r["_id"]: r["count"] for r in billing_results if r["_id"]}
+
+    # Plan click breakdown
+    plan_pipeline = [
+        {"$match": {"event_type": {"$in": ["plan_click", "subscribe_click"]}}},
+        {"$group": {"_id": {"plan": "$plan_id", "variant": "$variant"}, "count": {"$sum": 1}}}
+    ]
+    plan_results = await db.pricing_analytics.aggregate(plan_pipeline).to_list(50)
+    plan_clicks = {}
+    for r in plan_results:
+        key = f"{r['_id'].get('variant','?')}_{r['_id'].get('plan','?')}"
+        plan_clicks[key] = r["count"]
+
+    total_events = await db.pricing_analytics.count_documents({})
+    unique_sessions = len(await db.pricing_analytics.distinct("session_id"))
+
+    return {
+        "stats": stats,
+        "billing_prefs": billing_prefs,
+        "plan_clicks": plan_clicks,
+        "total_events": total_events,
+        "unique_sessions": unique_sessions,
+        "recommendation": "Variant B" if stats.get("B", {}).get("conversion_rate", 0) > stats.get("A", {}).get("conversion_rate", 0) else "Variant A" if stats.get("A", {}).get("conversion_rate", 0) > 0 else "Not enough data"
+    }
 
 # ---- MOCK EMAIL SERVICE ----
 email_log = []  # In-memory log of sent emails
@@ -1889,6 +1984,7 @@ async def get_slot_prices(trip_id: str, user=Depends(get_current_user)):
 @api_router.get("/trips/{trip_id}/flight-coordination")
 async def get_flight_coordination(trip_id: str, user=Depends(get_current_user)):
     """Suggest flights so group members from different cities arrive within 1h of each other"""
+    await enforce_feature(user["_id"], "flight_coord")
     trip = await db.trips.find_one({"_id": ObjectId(trip_id)})
     if not trip:
         raise HTTPException(status_code=404, detail="Trip not found")

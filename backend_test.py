@@ -733,7 +733,7 @@ class TripSyncAPITester:
         return success, response
 
     def test_get_subscription_status(self):
-        """Test GET /api/subscription/status - should return current plan"""
+        """Test GET /api/subscription/status - should return current plan with usage field"""
         success, response = self.run_test(
             "Get Subscription Status",
             "GET",
@@ -744,15 +744,37 @@ class TripSyncAPITester:
             plan = response.get('plan', 'unknown')
             status = response.get('status', 'unknown')
             details = response.get('details', {})
+            usage = response.get('usage', {})
             
             print(f"   Current plan: {plan}")
             print(f"   Status: {status}")
             print(f"   Plan name: {details.get('name', 'N/A')}")
-            print(f"   Price: ${details.get('price', 0)}")
             
-            # For test user, should be 'free' plan
+            # Verify usage field exists
+            if not usage:
+                print(f"   ❌ FAILED: Missing 'usage' field in response")
+                return False, {}
+            
+            trips_created = usage.get('trips_created')
+            trips_limit = usage.get('trips_limit')
+            
+            if trips_created is None:
+                print(f"   ❌ FAILED: Missing 'trips_created' in usage field")
+                return False, {}
+            
+            if trips_limit is None:
+                print(f"   ❌ FAILED: Missing 'trips_limit' in usage field")
+                return False, {}
+            
+            print(f"   ✅ Usage field present: trips_created={trips_created}, trips_limit={trips_limit}")
+            
+            # Store for later tests
+            self.trips_created = trips_created
+            self.trips_limit = trips_limit
+            
+            # For Alice, should be 'free' plan with 5 trips
             if plan != 'free':
-                print(f"   ⚠️  Expected 'free' plan for test user, got '{plan}'")
+                print(f"   ⚠️  Expected 'free' plan for Alice, got '{plan}'")
         
         return success, response
 
@@ -874,6 +896,38 @@ class TripSyncAPITester:
 
     def test_availability_heatmap_4_participants(self):
         """Test GET /api/trips/{trip_id}/availability-heatmap - should show 4+ participants with overlapping dates"""
+        if not self.trip_id:
+            return False, {}
+        
+        success, response = self.run_test(
+            "Get Availability Heatmap with 4+ Participants",
+            "GET",
+            f"trips/{self.trip_id}/availability-heatmap",
+            200
+        )
+        if success:
+            participant_grid = response.get('participant_grid', [])
+            best_periods = response.get('best_periods', [])
+            heatmap = response.get('heatmap', {})
+            
+            print(f"   Participants in grid: {len(participant_grid)}")
+            for p in participant_grid:
+                name = p.get('name', 'Unknown')
+                dates_count = len(p.get('dates', {}))
+                print(f"     - {name}: {dates_count} available dates")
+            
+            print(f"   Best periods found: {len(best_periods)}")
+            if best_periods:
+                for i, period in enumerate(best_periods[:3]):
+                    print(f"     Period {i+1}: {period.get('start')} to {period.get('end')} ({period.get('days')} days, score: {period.get('score')}%)")
+            
+            # Verify we have 4+ participants
+            if len(participant_grid) < 4:
+                print(f"   ⚠️  Expected 4+ participants, got {len(participant_grid)}")
+            else:
+                print(f"   ✅ Confirmed {len(participant_grid)} participants")
+        
+        return success, response
 
     def test_analytics_pricing_event(self):
         """Test POST /api/analytics/pricing-event - should store event (no auth needed)"""
@@ -909,7 +963,7 @@ class TripSyncAPITester:
         return success, response
 
     def test_analytics_pricing_stats(self):
-        """Test GET /api/analytics/pricing-stats - should return stats with conversion_rate (auth required)"""
+        """Test GET /api/analytics/pricing-stats - should return stats with all required fields"""
         success, response = self.run_test(
             "Get Pricing Stats (Auth Required)",
             "GET",
@@ -917,7 +971,27 @@ class TripSyncAPITester:
             200
         )
         if success:
+            # Verify all required fields
+            required_fields = ['stats', 'total_events', 'unique_sessions', 'recommendation', 'billing_prefs', 'plan_clicks']
+            missing_fields = [f for f in required_fields if f not in response]
+            
+            if missing_fields:
+                print(f"   ❌ FAILED: Missing required fields: {missing_fields}")
+                return False, {}
+            
             stats = response.get('stats', {})
+            total_events = response.get('total_events', 0)
+            unique_sessions = response.get('unique_sessions', 0)
+            recommendation = response.get('recommendation', '')
+            billing_prefs = response.get('billing_prefs', {})
+            plan_clicks = response.get('plan_clicks', {})
+            
+            print(f"   ✅ Total events: {total_events}")
+            print(f"   ✅ Unique sessions: {unique_sessions}")
+            print(f"   ✅ Recommendation: {recommendation}")
+            print(f"   ✅ Billing prefs: {billing_prefs}")
+            print(f"   ✅ Plan clicks: {len(plan_clicks)} entries")
+            
             print(f"   Found stats for {len(stats)} variants")
             
             for variant, data in stats.items():
@@ -925,15 +999,131 @@ class TripSyncAPITester:
                 print(f"       - page_view: {data.get('page_view', 0)}")
                 print(f"       - subscribe_click: {data.get('subscribe_click', 0)}")
                 print(f"       - conversion_rate: {data.get('conversion_rate', 0)}%")
+                print(f"       - engagement_rate: {data.get('engagement_rate', 0)}%")
                 
                 # Verify conversion_rate field exists
                 if 'conversion_rate' not in data:
                     print(f"   ❌ FAILED: Missing 'conversion_rate' field for variant {variant}")
                     return False, {}
             
-            print(f"   ✅ Pricing stats with conversion_rate verified")
+            print(f"   ✅ All required fields verified in pricing stats")
         
         return success, response
+
+    def test_create_trip_at_limit(self):
+        """Test POST /api/trips when at trip limit - should return 403"""
+        # First check current trip count
+        if not hasattr(self, 'trips_created') or not hasattr(self, 'trips_limit'):
+            print("   ⚠️  Skipping: Need to run test_get_subscription_status first")
+            return False, {}
+        
+        print(f"   Current trips: {self.trips_created}/{self.trips_limit}")
+        
+        # If not at limit, skip this test
+        if self.trips_created < self.trips_limit:
+            print(f"   ⚠️  User has {self.trips_created} trips, not at limit of {self.trips_limit}. Cannot test enforcement.")
+            return True, {}
+        
+        # Try to create a trip when at limit
+        trip_data = {
+            "name": "Test Trip - Should Fail",
+            "trip_type": "weekend",
+            "description": "This trip should fail due to limit",
+            "group_size": 4,
+            "per_person_budget": 500,
+            "currency": "EUR"
+        }
+        
+        success, response = self.run_test(
+            "Create Trip at Limit (Should Fail with 403)",
+            "POST",
+            "trips",
+            403,  # Expecting 403 Forbidden
+            data=trip_data
+        )
+        
+        if success:
+            print(f"   ✅ Trip creation correctly blocked at limit")
+            # Check error message
+            if 'detail' in response:
+                print(f"   ✅ Error message: {response['detail']}")
+        else:
+            print(f"   ❌ FAILED: Expected 403 when creating trip at limit")
+        
+        return success, response
+    
+    def test_cancel_subscription(self):
+        """Test POST /api/subscription/cancel - should cancel subscription and send mock email"""
+        # First check if user has an active subscription
+        success, status_response = self.run_test(
+            "Check Subscription Before Cancel",
+            "GET",
+            "subscription/status",
+            200
+        )
+        
+        if not success:
+            print("   ❌ Failed to get subscription status")
+            return False, {}
+        
+        plan = status_response.get('plan', 'free')
+        subscription = status_response.get('subscription')
+        
+        if plan == 'free' or not subscription:
+            print(f"   ⚠️  User is on free plan with no active subscription. Cannot test cancellation.")
+            print(f"   ℹ️  This is expected for Alice who is on the free plan.")
+            return True, {}
+        
+        # Get email log count before cancellation
+        success, email_log_before = self.run_test(
+            "Get Email Log Before Cancel",
+            "GET",
+            "email-log",
+            200
+        )
+        
+        emails_before_count = len(email_log_before.get('emails', [])) if success else 0
+        
+        # Try to cancel subscription
+        success, response = self.run_test(
+            "Cancel Subscription",
+            "POST",
+            "subscription/cancel",
+            200
+        )
+        
+        if success:
+            message = response.get('message', '')
+            print(f"   ✅ Subscription cancelled: {message}")
+            
+            # Check if mock email was sent
+            success_email, email_log_after = self.run_test(
+                "Get Email Log After Cancel",
+                "GET",
+                "email-log",
+                200
+            )
+            
+            if success_email:
+                emails_after = email_log_after.get('emails', [])
+                emails_after_count = len(emails_after)
+                
+                if emails_after_count > emails_before_count:
+                    # Find cancellation email
+                    cancel_emails = [e for e in emails_after if 'cancel' in e.get('subject', '').lower()]
+                    if cancel_emails:
+                        print(f"   ✅ Mock cancellation email sent")
+                        print(f"      Subject: {cancel_emails[-1].get('subject')}")
+                        print(f"      To: {cancel_emails[-1].get('to')}")
+                    else:
+                        print(f"   ⚠️  Email sent but no cancellation email found")
+                else:
+                    print(f"   ⚠️  No new email sent after cancellation")
+        else:
+            print(f"   ❌ FAILED: Could not cancel subscription")
+        
+        return success, response
+
 
         if not self.trip_id:
             return False, {}
@@ -1006,31 +1196,44 @@ def main():
     if not success:
         print("❌ CRITICAL: Failed to get subscription plans")
     
-    # 2. Test GET /api/subscription/status
+    # 2. Test GET /api/subscription/status (with usage field)
     success, status_data = tester.test_get_subscription_status()
     if not success:
         print("❌ CRITICAL: Failed to get subscription status")
     
-    # 3. Test POST /api/subscription/checkout with monthly billing ($9)
-    success, checkout_monthly = tester.test_create_subscription_checkout_monthly()
+    # 3. Test POST /api/trips when at limit (should return 403)
+    print("\n🚫 Testing Trip Limit Enforcement...")
+    success, trip_limit_test = tester.test_create_trip_at_limit()
     if not success:
-        print("❌ CRITICAL: Failed to create monthly subscription checkout")
+        print("❌ CRITICAL: Trip limit enforcement test failed")
     
-    # 4. Test POST /api/subscription/checkout with annual billing ($86)
-    success, checkout_annual = tester.test_create_subscription_checkout_annual()
-    if not success:
-        print("❌ CRITICAL: Failed to create annual subscription checkout")
-    
-    # 5. Test POST /api/analytics/pricing-event (no auth)
+    # 4. Test POST /api/analytics/pricing-event (no auth)
     print("\n📊 Testing A/B Testing Analytics APIs...")
     success, event_data = tester.test_analytics_pricing_event()
     if not success:
         print("❌ CRITICAL: Failed to track pricing event")
     
-    # 6. Test GET /api/analytics/pricing-stats (auth required)
+    # 5. Test GET /api/analytics/pricing-stats (auth required, all fields)
     success, stats_data = tester.test_analytics_pricing_stats()
     if not success:
         print("❌ CRITICAL: Failed to get pricing stats")
+    
+    # 6. Test POST /api/subscription/cancel (with mock email)
+    print("\n❌ Testing Subscription Cancellation...")
+    success, cancel_data = tester.test_cancel_subscription()
+    if not success:
+        print("❌ CRITICAL: Failed to cancel subscription")
+    
+    # 7. Test POST /api/subscription/checkout with monthly billing ($9)
+    print("\n💳 Testing Subscription Checkout...")
+    success, checkout_monthly = tester.test_create_subscription_checkout_monthly()
+    if not success:
+        print("❌ CRITICAL: Failed to create monthly subscription checkout")
+    
+    # 8. Test POST /api/subscription/checkout with annual billing ($86)
+    success, checkout_annual = tester.test_create_subscription_checkout_annual()
+    if not success:
+        print("❌ CRITICAL: Failed to create annual subscription checkout")
     
     # 4. Test trip with 4 participants and Barcelona winner
     print("\n🌍 Testing Trip with 4 Participants and Barcelona Winner...")

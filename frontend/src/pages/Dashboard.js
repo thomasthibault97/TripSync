@@ -89,8 +89,8 @@ export default function Dashboard() {
           </h1>
           <div className="flex items-center gap-3 mt-2">
             <p className="text-[#5C605E] font-['Outfit']">Ready to plan your next adventure?</p>
-            <Link to="/pricing" className="inline-flex items-center gap-1 text-xs font-['Outfit'] font-bold text-[#E07A5F] bg-[#E07A5F]/10 px-3 py-1 rounded-full hover:bg-[#E07A5F]/20 transition-colors" data-testid="upgrade-badge">
-              <Sparkles className="w-3 h-3" /> Upgrade
+            <Link to="/subscription" className="inline-flex items-center gap-1 text-xs font-['Outfit'] font-bold text-[#E07A5F] bg-[#E07A5F]/10 px-3 py-1 rounded-full hover:bg-[#E07A5F]/20 transition-colors" data-testid="upgrade-badge">
+              <Sparkles className="w-3 h-3" /> Manage Plan
             </Link>
           </div>
         </motion.div>
