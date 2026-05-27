@@ -196,7 +196,7 @@ export default function GuestAvailability() {
         } else {
           setIsEditing(false);
         }
-      } catch {}
+      } catch (err) { console.error('Guest name check failed:', err); }
       setCheckingName(false);
     }, 800);
     return () => clearTimeout(timer);

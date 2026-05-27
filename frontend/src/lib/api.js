@@ -8,9 +8,9 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' }
 });
 
-// Add token from localStorage as fallback
+// Add token from sessionStorage (scoped per-tab, cleared on close — safer than localStorage for XSS mitigation)
 api.interceptors.request.use(config => {
-  const token = localStorage.getItem('access_token');
+  const token = sessionStorage.getItem('access_token');
   if (token && !config.headers.Authorization) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -27,11 +27,11 @@ api.interceptors.response.use(
       try {
         const { data } = await api.post('/auth/refresh');
         if (data.access_token) {
-          localStorage.setItem('access_token', data.access_token);
+          sessionStorage.setItem('access_token', data.access_token);
           error.config.headers.Authorization = `Bearer ${data.access_token}`;
           return api(error.config);
         }
-      } catch { /* ignore */ }
+      } catch (refreshErr) { console.error('Token refresh failed:', refreshErr); }
     }
     return Promise.reject(error);
   }

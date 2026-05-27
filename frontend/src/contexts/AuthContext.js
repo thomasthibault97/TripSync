@@ -30,28 +30,28 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const { data } = await api.post('/auth/login', { email, password });
-    if (data.access_token) localStorage.setItem('access_token', data.access_token);
+    if (data.access_token) sessionStorage.setItem('access_token', data.access_token);
     setUser(data);
     return data;
   };
 
   const register = async (name, email, password) => {
     const { data } = await api.post('/auth/register', { name, email, password });
-    if (data.access_token) localStorage.setItem('access_token', data.access_token);
+    if (data.access_token) sessionStorage.setItem('access_token', data.access_token);
     setUser(data);
     return data;
   };
 
   const loginWithGoogle = async (sessionId) => {
     const { data } = await api.post('/auth/google/session', { session_id: sessionId });
-    if (data.access_token) localStorage.setItem('access_token', data.access_token);
+    if (data.access_token) sessionStorage.setItem('access_token', data.access_token);
     setUser(data);
     return data;
   };
 
   const logout = async () => {
     await api.post('/auth/logout');
-    localStorage.removeItem('access_token');
+    sessionStorage.removeItem('access_token');
     setUser(false);
   };
 

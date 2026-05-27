@@ -64,9 +64,9 @@ export default function TripWorkspace() {
         } else if (msg.type === 'poll_closed') {
           toast.success(`Poll closed! Winner: ${msg.data?.winner || ''}`);
         }
-      } catch {}
+      } catch (err) { console.error('WebSocket message parse error:', err); }
     };
-    ws.onerror = () => {};
+    ws.onerror = (err) => { console.error('WebSocket error:', err); };
     return () => { ws.close(); };
   }, [tripId, fetchTrip]);
 

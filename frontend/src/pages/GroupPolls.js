@@ -177,7 +177,7 @@ export default function GroupPolls() {
   const [creating, setCreating] = useState(false);
 
   const fetchPolls = () => {
-    api.get(`/trips/${tripId}/polls`).then(r => setPolls(r.data)).catch(() => {}).finally(() => setLoading(false));
+    api.get(`/trips/${tripId}/polls`).then(r => setPolls(r.data)).catch((err) => { console.error('Failed to fetch polls:', err); }).finally(() => setLoading(false));
   };
 
   useEffect(() => { fetchPolls(); }, [tripId]);
@@ -195,7 +195,7 @@ export default function GroupPolls() {
           if (msg.type === 'poll_vote') toast.info(`${msg.data?.user_name} voted on "${msg.data?.question?.slice(0, 30)}"`);
           if (msg.type === 'poll_closed') toast.success(`Poll closed! Winner: ${msg.data?.winner}`);
         }
-      } catch {}
+      } catch (err) { console.error('Poll WebSocket message error:', err); }
     };
     return () => ws.close();
   }, [tripId]);

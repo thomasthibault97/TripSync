@@ -8,11 +8,19 @@ from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depend
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
-import os, logging, secrets, uuid, json, asyncio, httpx
+import os
+import logging
+import secrets
+import uuid
+import json
+import asyncio
+import httpx
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
-import bcrypt, jwt
+import bcrypt
+import jwt
+import hashlib
 
 # MongoDB
 mongo_url = os.environ['MONGO_URL']
@@ -967,6 +975,89 @@ async def get_receipt(session_id: str, user=Depends(get_current_user)):
     return receipt
 
 # ---- GROUP AVAILABILITY HEATMAP ----
+
+def extract_dates_from_pref(pref: dict) -> tuple:
+    """Extract dates set and ranges list from a single preference/guest doc."""
+    dates = set()
+    ranges = []
+    for dr in pref.get("date_ranges", []):
+        try:
+            start = datetime.strptime(dr["start"], "%Y-%m-%d")
+            end = datetime.strptime(dr["end"], "%Y-%m-%d")
+            ranges.append({"start": dr["start"], "end": dr["end"]})
+            current = start
+            while current <= end:
+                dates.add(current.strftime("%Y-%m-%d"))
+                current += timedelta(days=1)
+        except Exception:
+            pass
+    # Backward compat: individual dates
+    for d in pref.get("available_dates", []):
+        dates.add(d)
+    # Backward compat: single date range
+    if not ranges and pref.get("date_start") and pref.get("date_end"):
+        try:
+            start = datetime.strptime(pref["date_start"], "%Y-%m-%d")
+            end = datetime.strptime(pref["date_end"], "%Y-%m-%d")
+            ranges.append({"start": pref["date_start"], "end": pref["date_end"]})
+            current = start
+            while current <= end:
+                dates.add(current.strftime("%Y-%m-%d"))
+                current += timedelta(days=1)
+        except Exception:
+            pass
+    return dates, ranges
+
+def classify_availability_level(count: int, prefs_submitted: int) -> str:
+    """Return heatmap level string based on available count vs total."""
+    if prefs_submitted == 0:
+        return "unknown"
+    if count == prefs_submitted:
+        return "all"
+    if count >= prefs_submitted * 0.6:
+        return "most"
+    if count >= 1:
+        return "some"
+    return "none"
+
+def find_best_periods(sorted_dates: list, heatmap: dict, prefs_submitted: int) -> list:
+    """Find consecutive date stretches where at least half are available."""
+    best_periods = []
+    current_streak = None
+    for date_str in sorted_dates:
+        cell = heatmap.get(date_str, {})
+        count = cell.get("count", 0)
+        if count >= max(1, prefs_submitted * 0.5):
+            if current_streak is None:
+                current_streak = {"start": date_str, "end": date_str, "min_count": count, "max_count": count, "dates": [date_str]}
+            else:
+                prev_end = datetime.strptime(current_streak["end"], "%Y-%m-%d")
+                curr = datetime.strptime(date_str, "%Y-%m-%d")
+                if (curr - prev_end).days <= 2:
+                    current_streak["end"] = date_str
+                    current_streak["min_count"] = min(current_streak["min_count"], count)
+                    current_streak["max_count"] = max(current_streak["max_count"], count)
+                    current_streak["dates"].append(date_str)
+                else:
+                    if len(current_streak["dates"]) >= 2:
+                        best_periods.append(current_streak)
+                    current_streak = {"start": date_str, "end": date_str, "min_count": count, "max_count": count, "dates": [date_str]}
+        else:
+            if current_streak and len(current_streak["dates"]) >= 2:
+                best_periods.append(current_streak)
+            current_streak = None
+    if current_streak and len(current_streak["dates"]) >= 2:
+        best_periods.append(current_streak)
+    # Score periods
+    for bp in best_periods:
+        avg_count = sum(heatmap.get(d, {}).get("count", 0) for d in bp["dates"]) / len(bp["dates"])
+        bp["avg_available"] = round(avg_count, 1)
+        bp["score"] = round((avg_count / prefs_submitted) * 100) if prefs_submitted else 0
+        bp["days"] = len(bp["dates"])
+        bp["all_available_days"] = sum(1 for d in bp["dates"] if heatmap.get(d, {}).get("count", 0) == prefs_submitted)
+    best_periods.sort(key=lambda x: (x["score"], x["days"]), reverse=True)
+    return best_periods
+
 @api_router.get("/trips/{trip_id}/availability-heatmap")
 async def get_availability_heatmap(trip_id: str, user=Depends(get_current_user)):
     trip = await db.trips.find_one({"_id": ObjectId(trip_id)})
@@ -983,35 +1074,7 @@ async def get_availability_heatmap(trip_id: str, user=Depends(get_current_user))
 
     for p in prefs:
         name = p.get("user_name", "Unknown")
-        dates = set()
-        ranges = []
-        # From new date_ranges format (pairs of departure->return)
-        for dr in p.get("date_ranges", []):
-            try:
-                start = datetime.strptime(dr["start"], "%Y-%m-%d")
-                end = datetime.strptime(dr["end"], "%Y-%m-%d")
-                ranges.append({"start": dr["start"], "end": dr["end"]})
-                current = start
-                while current <= end:
-                    dates.add(current.strftime("%Y-%m-%d"))
-                    current += timedelta(days=1)
-            except Exception:
-                pass
-        # Backward compat: from old flexible date picker individual dates
-        for d in p.get("available_dates", []):
-            dates.add(d)
-        # Backward compat: from old single date range
-        if not ranges and p.get("date_start") and p.get("date_end"):
-            try:
-                start = datetime.strptime(p["date_start"], "%Y-%m-%d")
-                end = datetime.strptime(p["date_end"], "%Y-%m-%d")
-                ranges.append({"start": p["date_start"], "end": p["date_end"]})
-                current = start
-                while current <= end:
-                    dates.add(current.strftime("%Y-%m-%d"))
-                    current += timedelta(days=1)
-            except Exception:
-                pass
+        dates, ranges = extract_dates_from_pref(p)
         participant_dates[name] = dates
         participant_ranges[name] = ranges
         all_dates_set.update(dates)
@@ -1024,24 +1087,12 @@ async def get_availability_heatmap(trip_id: str, user=Depends(get_current_user))
     guest_submissions = await db.guest_availability.find({"trip_id": trip_id}, {"_id": 0}).to_list(100)
     for g in guest_submissions:
         name = f"{g.get('name', 'Guest')} (guest)"
-        dates = set()
-        ranges = []
-        for dr in g.get("date_ranges", []):
-            try:
-                start = datetime.strptime(dr["start"], "%Y-%m-%d")
-                end = datetime.strptime(dr["end"], "%Y-%m-%d")
-                ranges.append({"start": dr["start"], "end": dr["end"]})
-                current = start
-                while current <= end:
-                    dates.add(current.strftime("%Y-%m-%d"))
-                    current += timedelta(days=1)
-            except Exception:
-                pass
+        dates, ranges = extract_dates_from_pref(g)
         if dates:
             participant_dates[name] = dates
             participant_ranges[name] = ranges
             all_dates_set.update(dates)
-            prefs_submitted += 1  # count guests toward availability
+            prefs_submitted += 1
 
     # If nobody submitted dates, generate next 3 months as "unknown"
     if not all_dates_set:
@@ -1061,17 +1112,7 @@ async def get_availability_heatmap(trip_id: str, user=Depends(get_current_user))
                 unavailable_names.append(name)
         # Also count participants who haven't submitted prefs as unknown
         no_prefs_names = [p.get("name", "") for p in participants if p.get("name", "") not in participant_dates]
-
-        if prefs_submitted == 0:
-            level = "unknown"
-        elif count == prefs_submitted:
-            level = "all"
-        elif count >= prefs_submitted * 0.6:
-            level = "most"
-        elif count >= 1:
-            level = "some"
-        else:
-            level = "none"
+        level = classify_availability_level(count, prefs_submitted)
 
         heatmap[date_str] = {
             "count": count,
@@ -1122,42 +1163,8 @@ async def get_availability_heatmap(trip_id: str, user=Depends(get_current_user))
         if pname and pname not in participant_dates:
             participant_grid.append({"name": pname, "dates": {}, "pending": True})
 
-    # Find best periods: consecutive stretches where max people are available
-    best_periods = []
-    if sorted_dates and prefs_submitted > 0:
-        current_streak = None
-        for date_str in sorted_dates:
-            cell = heatmap.get(date_str, {})
-            count = cell.get("count", 0)
-            if count >= max(1, prefs_submitted * 0.5):  # At least half available
-                if current_streak is None:
-                    current_streak = {"start": date_str, "end": date_str, "min_count": count, "max_count": count, "dates": [date_str]}
-                else:
-                    prev_end = datetime.strptime(current_streak["end"], "%Y-%m-%d")
-                    curr = datetime.strptime(date_str, "%Y-%m-%d")
-                    if (curr - prev_end).days <= 2:  # Allow 1-day gap
-                        current_streak["end"] = date_str
-                        current_streak["min_count"] = min(current_streak["min_count"], count)
-                        current_streak["max_count"] = max(current_streak["max_count"], count)
-                        current_streak["dates"].append(date_str)
-                    else:
-                        if len(current_streak["dates"]) >= 2:
-                            best_periods.append(current_streak)
-                        current_streak = {"start": date_str, "end": date_str, "min_count": count, "max_count": count, "dates": [date_str]}
-            else:
-                if current_streak and len(current_streak["dates"]) >= 2:
-                    best_periods.append(current_streak)
-                current_streak = None
-        if current_streak and len(current_streak["dates"]) >= 2:
-            best_periods.append(current_streak)
-        # Score periods
-        for bp in best_periods:
-            avg_count = sum(heatmap.get(d, {}).get("count", 0) for d in bp["dates"]) / len(bp["dates"])
-            bp["avg_available"] = round(avg_count, 1)
-            bp["score"] = round((avg_count / prefs_submitted) * 100) if prefs_submitted else 0
-            bp["days"] = len(bp["dates"])
-            bp["all_available_days"] = sum(1 for d in bp["dates"] if heatmap.get(d, {}).get("count", 0) == prefs_submitted)
-        best_periods.sort(key=lambda x: (x["score"], x["days"]), reverse=True)
+    # Find best periods using helper
+    best_periods = find_best_periods(sorted_dates, heatmap, prefs_submitted) if sorted_dates and prefs_submitted > 0 else []
 
     # Compute most probable travel ranges by finding overlapping ranges across users
     # For each unique range submitted by any user, count how many other users also cover that range
@@ -1409,10 +1416,8 @@ async def get_email_log(user=Depends(get_current_user)):
 # ---- SLOT PRICE COMPARISON ----
 def get_slot_price(dest: dict, departure_city: str, start_date: str, end_date: str, num_travelers: int = 1) -> dict:
     """Generate simulated but realistic prices for a specific date slot"""
-    import hashlib
-    base = dest.get("avg_budget_per_person", 400)
     seed_str = f"{dest['id']}-{departure_city}-{start_date}-{end_date}"
-    seed_val = int(hashlib.md5(seed_str.encode()).hexdigest()[:8], 16)
+    seed_val = int(hashlib.sha256(seed_str.encode()).hexdigest()[:8], 16)
     random.seed(seed_val)
 
     # Date-based price factors (weekends more expensive, summer peak)
@@ -1578,7 +1583,6 @@ async def get_flight_coordination(trip_id: str, user=Depends(get_current_user)):
 
         # Generate arrival flight suggestions per traveler
         outbound_flights = []
-        import hashlib
         for t in travelers:
             # Find transport options from this city
             matched_transport = None
@@ -1606,7 +1610,7 @@ async def get_flight_coordination(trip_id: str, user=Depends(get_current_user)):
                     time_slots = ["08:00", "12:00", "17:00"]
 
                 for i, dep_time in enumerate(time_slots):
-                    seed_val = int(hashlib.md5(f"{t['departure_city']}-{dest['id']}-{dep_time}-{travel_start}".encode()).hexdigest()[:8], 16)
+                    seed_val = int(hashlib.sha256(f"{t['departure_city']}-{dest['id']}-{dep_time}-{travel_start}".encode()).hexdigest()[:8], 16)
                     random.seed(seed_val)
                     price = round(base_price * random.uniform(0.8, 1.3))
 
