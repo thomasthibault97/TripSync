@@ -1,42 +1,26 @@
-# TripSync - AI-Powered All-Inclusive Group Travel Platform
+# TripSync — AI-Powered Group Travel Platform
 
 ## Architecture
-- Frontend: React 19 + Tailwind CSS + Shadcn UI + Framer Motion + PWA
-- Backend: FastAPI + WebSocket on port 8001
-- Database: MongoDB (motor async)
-- Auth: JWT (sessionStorage) + Google OAuth
+React 19 + Tailwind + Shadcn + Framer Motion | FastAPI + WebSocket | MongoDB | JWT (sessionStorage) + Google OAuth | Stripe
 
-## All Implemented Features
-1. Core MVP (Phases 1-7): Auth, 10 destinations, matching, voting, itinerary, Google OAuth, WebSocket, Stripe, PWA, Smart Weekend, Weather, Templates, AI Chatbot, Deal Finder, Calendar Export, Heatmap, Polling
-2. Date Range Picker (departure→return pairs)
-3. Lock in Dates (owner-only, unlock, notifications)
-4. Share Availability Link (guest page, no auth)
-5. Mock Email Service (guest notifications on lock)
-6. Guest Edit on Revisit (auto-detect by name)
-7. Auto Lock Suggestion (all-overlap detection banner)
-8. Slot Price Comparison (mock prices per slot, 5 destinations)
-9. Flight Coordination (synchronized arrivals within 1h)
-10. UI/UX Overhaul (Cormorant Garamond, editorial luxury)
-11. Code Quality (MD5→SHA256, localStorage→sessionStorage, error handling)
-12. Trip Budget Tracker (dedicated page + floating widget)
-13. Budget Suggestions (pre-populated from destination data)
-14. Slot Price Comparison Page (frontend)
-15. Flight Coordination Page (frontend)
-16. Stable IDs (replaced index keys across Voting, TripWorkspace, PreferencesForm, GroupPolls)
-17. Component Splitting (AvailabilityHeatmap 686→457, PreferencesForm 612→401)
-
-## Pages: 28
+## 28 Pages
 Landing, Auth, AuthCallback, Dashboard, CreateTrip, TripTemplates, TripWorkspace, PreferencesForm, Recommendations, DestinationDetail, Voting, FinalItinerary, CostSplitter, PaymentSuccess, Receipt, SmartWeekendFinder, DealFinder, AvailabilityHeatmap, GroupPolls, JoinTrip, AdminPanel, GuestAvailability, BudgetTracker, SlotPriceComparison, FlightCoordination
 
-## Extracted Components
-- components/DateRangePicker.js (162 lines)
-- components/BudgetWidget.js (floating tracker)
-- components/heatmap/HeatmapTooltip.js (43 lines)
-- components/heatmap/BestPeriodsSection.js (66 lines)
-- components/heatmap/HeatmapSidebar.js (142 lines — MostProbableRanges, ParticipantRangesSidebar, BestWeekendsSidebar)
-
-## Backlog
-- P1: Packing list feature
-- P2: Real flight API (Amadeus/Skyscanner)
-- P2: Push notifications for budget alerts
-- P2: Trip photo gallery
+## 17 Major Features
+1. Core MVP (Auth, 10 destinations, matching, voting, itinerary)
+2. Google OAuth + WebSocket + Stripe
+3. PWA + Smart Weekend Finder + Weather
+4. Trip Templates + AI Chatbot (GPT-5.2) + Deal Finder + Calendar Export
+5. Date Range Picker (departure→return pairs)
+6. Lock in Dates + Unlock (owner-only, notifications)
+7. Share Availability Link (guest page, no auth)
+8. Mock Email Service + Guest Edit on Revisit
+9. Auto Lock Suggestion
+10. Slot Price Comparison (mock prices per slot)
+11. Flight Coordination (synchronized arrivals within 1h)
+12. Trip Budget Tracker (dedicated page + floating widget + suggestions)
+13. UI/UX Overhaul (Cormorant Garamond, editorial luxury)
+14. Code Quality (SHA256, sessionStorage, error handling, refactoring)
+15. Component Splitting (Heatmap 686→457, PreferencesForm 612→401)
+16. Trip Progress Bar (6-step visual pipeline)
+17. Trip Readiness Score + Smart Summary + Next Action
